@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+pydantic
+langchain-core
+langchain-nvidia-ai-endpoints
+langgraph
+pinecone
+langchain-pinecone
