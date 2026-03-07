@@ -4,6 +4,7 @@ import { useState } from "react";
 import ImageUploadZone from "./ImageUploadZone";
 import { ScanLine, Type, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
+import { FinalAnalysis } from "@/lib/types/ai";
 
 // PRD §5.1.3 — Two-tier occasion system
 const OCCASIONS_TIER1 = ["Casual", "Smart Casual", "Business", "Formal", "Event", "Active"] as const;
@@ -11,7 +12,11 @@ const STYLE_PERSONAS = ["Minimalist", "Streetwear", "Old Money", "Business Core"
 
 type InputMode = "image" | "text";
 
-export default function Scanner() {
+interface ScannerProps {
+  onAnalysisComplete: (data: FinalAnalysis) => void;
+}
+
+export default function Scanner({ onAnalysisComplete }: ScannerProps) {
   // Input state
   const [mode, setMode] = useState<InputMode>("image");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -53,10 +58,38 @@ export default function Scanner() {
 
     setIsAnalyzing(true);
     try {
-      // TODO: Phase 6 — POST to gateway/api/analyze
-      toast.info("Analysis engine not connected yet. This will work after Phase 3 & 6.");
-    } catch {
-      toast.error("Analysis failed. Please try again.");
+      // Build FormData exactly matching FastAPI expectations
+      const formData = new FormData();
+      if (mode === "image" && imageFile) {
+        formData.append("image", imageFile);
+      } else if (mode === "text") {
+        formData.append("text_description", textDescription);
+      }
+
+      formData.append("occasion_tier_1", occasionTier1);
+      if (occasionTier2.trim()) formData.append("occasion_tier_2", occasionTier2.trim());
+      formData.append("style_persona", persona);
+
+      // (Optional) If we had the user context from Clerk/Supabase we would append gender/body_type here.
+      // E.g., formData.append("gender", "mens");
+      
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.details || "Failed to analyze outfit");
+      }
+
+      const data: FinalAnalysis = await response.json();
+      toast.success("Analysis complete!");
+      handleClearImage(); // clean up memory
+      onAnalysisComplete(data);
+      
+    } catch (error: any) {
+      toast.error(error.message || "Analysis failed. Please try again.");
     } finally {
       setIsAnalyzing(false);
     }

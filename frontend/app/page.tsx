@@ -1,7 +1,7 @@
 import { UserButton, SignInButton } from "@clerk/nextjs";
 import { currentUser } from "@clerk/nextjs/server";
 import { Sparkles } from "lucide-react";
-import Scanner from "@/components/ui/Scanner";
+import MainApp from "@/components/ui/MainApp";
 
 export default async function Home() {
   const user = await currentUser();
@@ -20,8 +20,8 @@ export default async function Home() {
       </div>
 
       {user ? (
-        /* Authenticated: Show the Scanner */
-        <Scanner />
+        /* Authenticated: Show the App flow */
+        <MainApp />
       ) : (
         /* Unauthenticated: Show Landing */
         <div className="flex-1 flex flex-col items-center justify-center text-center">

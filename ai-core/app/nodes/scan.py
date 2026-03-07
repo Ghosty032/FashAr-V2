@@ -1,5 +1,6 @@
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.output_parsers import JsonOutputParser
 from app.schemas.state import AgentState
 from app.schemas.models import ScanResult
 from app.prompts.prompts import SCANNER_SYSTEM_PROMPT
@@ -12,20 +13,21 @@ def scan_outfit(state: AgentState) -> AgentState:
     """
     print("--- [NODE] Scanning Outfit ---")
     
-    # We use a reliable multimodal model from NIM for the vision task.
-    # E.g., meta/llama-3.2-90b-vision-instruct is excellent for visual QA.
-    # If the user only provided text, we can use a standard LLM.
     if state.get("image_base64"):
         model_name = "meta/llama-3.2-90b-vision-instruct"
-        # model_name = "nvidia/nemotron-4-340b-instruct" # alternative if vision is offline
     else:
         model_name = "meta/llama-3.1-405b-instruct"
         
     try:
         llm = ChatNVIDIA(model=model_name, temperature=0.1)
-        structured_llm = llm.with_structured_output(ScanResult)
+        parser = JsonOutputParser(pydantic_object=ScanResult)
         
-        messages = [SystemMessage(content=SCANNER_SYSTEM_PROMPT)]
+        # Inject JSON format instructions into the system prompt
+        system_content = SCANNER_SYSTEM_PROMPT + "\n\n{format_instructions}"
+        instruction_text = parser.get_format_instructions()
+        system_msg = SystemMessage(content=system_content.replace("{format_instructions}", instruction_text))
+        
+        messages = [system_msg]
         
         if state.get("image_base64"):
             messages.append(HumanMessage(content=[
@@ -37,7 +39,12 @@ def scan_outfit(state: AgentState) -> AgentState:
         else:
             raise ValueError("No image or text description provided.")
             
-        result = structured_llm.invoke(messages)
+        print(f"Calling NVIDIA NIM Vision Model: {model_name}...")
+        result_dict = (llm | parser).invoke(messages)
+        
+        # Parse into Pydantic model
+        result = ScanResult(**result_dict)
+        print("Scan successful!")
         return {"scan_result": result}
         
     except Exception as e:
