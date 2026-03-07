@@ -16,7 +16,7 @@ def scan_outfit(state: AgentState) -> AgentState:
     if state.get("image_base64"):
         model_name = "meta/llama-3.2-90b-vision-instruct"
     else:
-        model_name = "meta/llama-3.1-405b-instruct"
+        model_name = "meta/llama-3.1-70b-instruct"
         
     try:
         llm = ChatNVIDIA(model=model_name, temperature=0.1)

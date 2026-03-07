@@ -14,8 +14,8 @@ def critique_outfit(state: AgentState) -> AgentState:
     print("--- [NODE] Critiquing Outfit ---")
     
     try:
-        # Use Qwen 3.5 122B / Llama 3 for deep reasoning
-        llm = ChatNVIDIA(model="meta/llama-3.1-405b-instruct", temperature=0.6)
+        # Use Qwen/Llama 3 70B for faster reasoning instead of the massive 405B
+        llm = ChatNVIDIA(model="meta/llama-3.1-70b-instruct", temperature=0.6)
         parser = JsonOutputParser(pydantic_object=CritiqueResult)
         
         scan = state.get("scan_result")
