@@ -47,7 +47,7 @@ export default function MainApp() {
         <div className="flex justify-end max-w-2xl mx-auto mb-4">
           <button
             onClick={() => setView("history")}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors bg-white px-4 py-2 rounded-full border border-gray-200 shadow-sm"
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors bg-white px-4 py-2 rounded-full border border-gray-200 shadow-sm dark:bg-gray-900 dark:text-gray-400 dark:hover:text-gray-100 dark:border-gray-800"
           >
             <Clock className="w-4 h-4" />
             History

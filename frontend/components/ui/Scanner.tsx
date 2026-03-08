@@ -112,13 +112,13 @@ export default function Scanner({ onAnalysisComplete }: ScannerProps) {
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-6">
+    <div className="w-full max-w-2xl mx-auto space-y-6 animate-fade-in-up">
       {/* Mode Tabs */}
-      <div className="flex bg-gray-100 rounded-xl p-1">
+      <div className="flex bg-gray-100 dark:bg-gray-900 rounded-xl p-1">
         <button
           onClick={() => setMode("image")}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all
-            ${mode === "image" ? "bg-white text-black shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            ${mode === "image" ? "bg-white dark:bg-gray-800 text-black dark:text-white shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"}`}
         >
           <ScanLine className="w-4 h-4" />
           Photo
@@ -126,7 +126,7 @@ export default function Scanner({ onAnalysisComplete }: ScannerProps) {
         <button
           onClick={() => setMode("text")}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all
-            ${mode === "text" ? "bg-white text-black shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            ${mode === "text" ? "bg-white dark:bg-gray-800 text-black dark:text-white shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"}`}
         >
           <Type className="w-4 h-4" />
           Describe
@@ -146,7 +146,7 @@ export default function Scanner({ onAnalysisComplete }: ScannerProps) {
           onChange={(e) => setTextDescription(e.target.value)}
           rows={4}
           placeholder="Describe your outfit in detail… e.g., 'Wearing dark navy slim-fit jeans, a white oversized linen shirt untucked, and brown leather Chelsea boots.'"
-          className="w-full rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 resize-none"
+          className="w-full rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 text-sm text-gray-800 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none transition-colors"
         />
       )}
 
@@ -154,15 +154,15 @@ export default function Scanner({ onAnalysisComplete }: ScannerProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Occasion Tier 1 */}
         <div>
-          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Occasion</label>
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Occasion</label>
           <div className="relative">
             <select
               value={occasionTier1}
               onChange={(e) => setOccasionTier1(e.target.value)}
-              className="w-full appearance-none rounded-xl border border-gray-200 bg-white py-2.5 pl-4 pr-10 text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-black/10"
+              className="w-full appearance-none rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-2.5 pl-4 pr-10 text-sm font-medium text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
             >
               {OCCASIONS_TIER1.map((o) => (
-                <option key={o} value={o}>{o}</option>
+                <option key={o} value={o} className="bg-white dark:bg-gray-900">{o}</option>
               ))}
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -171,15 +171,15 @@ export default function Scanner({ onAnalysisComplete }: ScannerProps) {
 
         {/* Style Persona */}
         <div>
-          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Style Persona</label>
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Style Persona</label>
           <div className="relative">
             <select
               value={persona}
               onChange={(e) => setPersona(e.target.value)}
-              className="w-full appearance-none rounded-xl border border-gray-200 bg-white py-2.5 pl-4 pr-10 text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-black/10"
+              className="w-full appearance-none rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-2.5 pl-4 pr-10 text-sm font-medium text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
             >
               {STYLE_PERSONAS.map((p) => (
-                <option key={p} value={p}>{p}</option>
+                <option key={p} value={p} className="bg-white dark:bg-gray-900">{p}</option>
               ))}
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -189,13 +189,13 @@ export default function Scanner({ onAnalysisComplete }: ScannerProps) {
 
       {/* Occasion Tier 2 — Contextual Detail */}
       <div>
-        <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Context Detail <span className="text-gray-400">(optional)</span></label>
+        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Context Detail <span className="text-gray-400 dark:text-gray-600">(optional)</span></label>
         <input
           type="text"
           value={occasionTier2}
           onChange={(e) => setOccasionTier2(e.target.value)}
           placeholder="e.g., rooftop bar, law firm interview, outdoor wedding…"
-          className="w-full rounded-xl border border-gray-200 bg-white py-2.5 px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black/10"
+          className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-2.5 px-4 text-sm text-gray-800 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
         />
       </div>
 
@@ -203,7 +203,7 @@ export default function Scanner({ onAnalysisComplete }: ScannerProps) {
       <button
         onClick={handleSubmit}
         disabled={!canSubmit || isAnalyzing}
-        className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white py-4 px-6 rounded-2xl font-semibold hover:bg-black transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.2)] hover:-translate-y-0.5 active:translate-y-0"
+        className="w-full flex items-center justify-center gap-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 py-4 px-6 rounded-2xl font-semibold hover:bg-black dark:hover:bg-gray-100 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.2)] dark:hover:shadow-[0_8px_30px_rgb(255,255,255,0.1)] hover:-translate-y-0.5 active:translate-y-0"
       >
         <ScanLine className="w-5 h-5" />
         Analyze My Outfit
@@ -211,15 +211,15 @@ export default function Scanner({ onAnalysisComplete }: ScannerProps) {
 
       {/* Phase 8: Premium Loading Overlay */}
       {isAnalyzing && (
-        <div className="absolute inset-0 z-50 glass-card rounded-3xl flex flex-col items-center justify-center animate-fade-in">
+        <div className="absolute inset-0 z-50 glass-card dark:bg-gray-950/80 rounded-3xl flex flex-col items-center justify-center animate-fade-in backdrop-blur-xl border-white/20 dark:border-white/5">
           <div className="relative flex items-center justify-center w-20 h-20 mb-6">
             {/* Spinning gradient ring */}
             <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-indigo-500 border-r-indigo-500 animate-spin" />
             <div className="absolute inset-2 rounded-full border-4 border-transparent border-b-violet-500 border-l-violet-500 animate-spin-slow" />
-            <ScanLine className="w-8 h-8 text-gray-900 animate-pulse" />
+            <ScanLine className="w-8 h-8 text-gray-900 dark:text-white animate-pulse" />
           </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">Analyzing Outfit</h3>
-          <p className="text-sm text-gray-500 animate-pulse text-center px-6">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Analyzing Outfit</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 animate-pulse text-center px-6">
             Running 122B parameter vision model...<br/>
             Evaluating silhouette, gap, and colors.
           </p>

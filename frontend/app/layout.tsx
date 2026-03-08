@@ -2,6 +2,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
+import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -53,15 +54,25 @@ export default function RootLayout({
         layout: {
           socialButtonsVariant: 'iconButton',
         },
+        elements: {
+          formButtonPrimary: "dark:!bg-white dark:!text-black dark:hover:!bg-gray-200 transition-colors",
+        },
         variables: {
           colorPrimary: '#000000',
         }
       }}
     >
-      <html lang="en">
-        <body className={`${inter.className} min-h-screen bg-gray-50 text-gray-900`}>
-          {children}
-          <Toaster position="top-center" richColors closeButton />
+      <html lang="en" suppressHydrationWarning>
+        <body className={`${inter.className} min-h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-gray-100 transition-colors duration-300`}>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+            <Toaster position="top-center" richColors closeButton theme="system" />
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>
