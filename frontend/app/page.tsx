@@ -1,17 +1,33 @@
-import { UserButton, SignInButton } from "@clerk/nextjs";
-import { currentUser } from "@clerk/nextjs/server";
+"use client";
+
+import { useState } from "react";
+import { UserButton, SignInButton, useUser } from "@clerk/nextjs";
 import { Sparkles, Camera, Search, ShoppingBag, ArrowRight } from "lucide-react";
 import MainApp from "@/components/ui/MainApp";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
-export default async function Home() {
-  const user = await currentUser();
+export default function Home() {
+  const { isLoaded, isSignedIn, user } = useUser();
+  const [isAppOpen, setIsAppOpen] = useState(false);
+
+  // Still rendering loading state to prevent flash, but keep it minimal
+  if (!isLoaded) return null;
 
   return (
     <div className="min-h-screen flex flex-col items-center selection:bg-indigo-100 selection:text-indigo-900 dark:selection:bg-indigo-900 dark:selection:text-indigo-100 bg-gray-50 dark:bg-black overflow-hidden transition-colors duration-300">
       {/* Header */}
       <div className="w-full max-w-5xl flex items-center justify-between px-6 py-6 z-10 bg-white/70 dark:bg-transparent backdrop-blur-md dark:backdrop-blur-none border border-white/40 dark:border-transparent sticky top-0 rounded-b-3xl transition-colors">
-        <a href="/" className="flex items-center gap-2 group cursor-pointer" title="Go to home">
+        <a 
+          href="/" 
+          onClick={(e) => {
+            if (isAppOpen) {
+              e.preventDefault();
+              setIsAppOpen(false); // Soft reset to landing page
+            }
+          }}
+          className="flex items-center gap-2 group cursor-pointer" 
+          title="Go to home"
+        >
           <div className="bg-black dark:bg-white/10 text-white p-1.5 rounded-lg group-hover:scale-110 transition-transform">
             <Sparkles className="w-5 h-5" />
           </div>
@@ -21,7 +37,7 @@ export default async function Home() {
         <div className="flex items-center gap-4">
           <ThemeToggle />
 
-          {user ? (
+          {isSignedIn ? (
             <UserButton appearance={{ elements: { userButtonAvatarBox: "w-10 h-10 shadow-sm border border-gray-200 dark:border-gray-800" } }} />
           ) : (
             <SignInButton mode="modal">
@@ -31,13 +47,13 @@ export default async function Home() {
         </div>
       </div>
 
-      {user ? (
-        /* Authenticated: Show the App flow */
+      {isAppOpen && isSignedIn ? (
+        /* Authenticated & Flow Started: Show the App flow */
         <div className="w-full max-w-4xl px-4 py-8 animate-fade-in">
           <MainApp />
         </div>
       ) : (
-        /* Unauthenticated: Show Landing */
+        /* Unauthenticated OR Initial Landing View: Show Landing */
         <main className="flex-1 flex flex-col items-center justify-center text-center w-full px-4 relative">
 
           {/* Background Decor */}
@@ -59,13 +75,24 @@ export default async function Home() {
             </p>
 
             <div className="animate-fade-in-up delay-300">
-              <SignInButton mode="modal">
-                <button className="group relative inline-flex items-center gap-2 bg-black dark:bg-white text-white dark:text-black px-8 py-4 rounded-2xl font-semibold hover:scale-105 active:scale-95 transition-all shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_30px_rgb(255,255,255,0.12)] overflow-hidden">
+              {isSignedIn ? (
+                <button 
+                  onClick={() => setIsAppOpen(true)}
+                  className="group relative inline-flex items-center gap-2 bg-black dark:bg-white text-white dark:text-black px-8 py-4 rounded-2xl font-semibold hover:scale-105 active:scale-95 transition-all shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_30px_rgb(255,255,255,0.12)] overflow-hidden"
+                >
                   <span className="absolute inset-0 bg-white/20 dark:bg-black/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
-                  <span className="relative">Start Analyzing</span>
+                  <span className="relative">Enter the App</span>
                   <ArrowRight className="w-5 h-5 relative group-hover:translate-x-1 transition-transform" />
                 </button>
-              </SignInButton>
+              ) : (
+                <SignInButton mode="modal">
+                  <button className="group relative inline-flex items-center gap-2 bg-black dark:bg-white text-white dark:text-black px-8 py-4 rounded-2xl font-semibold hover:scale-105 active:scale-95 transition-all shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_30px_rgb(255,255,255,0.12)] overflow-hidden">
+                    <span className="absolute inset-0 bg-white/20 dark:bg-black/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
+                    <span className="relative">Start Analyzing</span>
+                    <ArrowRight className="w-5 h-5 relative group-hover:translate-x-1 transition-transform" />
+                  </button>
+                </SignInButton>
+              )}
             </div>
           </div>
 
@@ -104,7 +131,7 @@ export default async function Home() {
       )}
 
       {/* Footer */}
-      {!user && (
+      {!isAppOpen && (
         <footer className="w-full border-t border-gray-100 dark:border-gray-900 py-8 text-center text-sm text-gray-400 z-10 bg-white dark:bg-black transition-colors duration-300">
           <p>© {new Date().getFullYear()} FASHR. Built with LangGraph, Next.js, and Pinecone.</p>
         </footer>
