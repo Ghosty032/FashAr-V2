@@ -76,7 +76,7 @@ export default function Results({ data, onReset }: { data: FinalAnalysis, onRese
       </div>
 
       {/* Weather + Colors + Detected Items */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className={`grid grid-cols-1 ${weather ? "md:grid-cols-3" : "md:grid-cols-2"} gap-6`}>
         
         {/* Weather Tile (Phase 5) */}
         {weather && (
@@ -96,7 +96,7 @@ export default function Results({ data, onReset }: { data: FinalAnalysis, onRese
           </div>
         )}
 
-        <div className={`bg-white p-6 rounded-3xl border border-gray-100 shadow-sm ${!weather ? "md:col-span-1" : ""}`}>
+        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
           <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-4">Color Palette</h3>
           <div className="flex gap-3">
             {color_palette.map((color, idx) => (
