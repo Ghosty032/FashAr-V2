@@ -1,3 +1,5 @@
+import re
+import json
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers import JsonOutputParser
@@ -6,7 +8,24 @@ from app.schemas.models import ScanResult
 from app.prompts.prompts import SCANNER_SYSTEM_PROMPT
 import app.config  # ensures API key is loaded
 
-def scan_outfit(state: AgentState) -> AgentState:
+
+def _extract_json_from_text(raw_text: str) -> dict | None:
+    """
+    Fallback: if the model wraps JSON in prose like 'Sure, here is...',
+    extract the first JSON object using regex.
+    """
+    # Try to find a JSON object {...}
+    match = re.search(r'\{[\s\S]*\}', raw_text)
+    if match:
+        try:
+            parsed = json.loads(match.group())
+            return parsed if isinstance(parsed, dict) else None
+        except json.JSONDecodeError:
+            pass
+    return None
+
+
+async def scan_outfit(state: AgentState) -> dict:
     """
     Node 1: Receives the outfit (image or text) and extracts a factual
     list of garments and colors.
@@ -16,6 +35,7 @@ def scan_outfit(state: AgentState) -> AgentState:
     if state.get("image_base64"):
         model_name = "meta/llama-3.2-90b-vision-instruct"
     else:
+        # Fast Parser Agent (70B)
         model_name = "meta/llama-3.1-70b-instruct"
         
     try:
@@ -23,7 +43,13 @@ def scan_outfit(state: AgentState) -> AgentState:
         parser = JsonOutputParser(pydantic_object=ScanResult)
         
         # Inject JSON format instructions into the system prompt
-        system_content = SCANNER_SYSTEM_PROMPT + "\n\n{format_instructions}"
+        # Also add a strong instruction to output ONLY JSON
+        system_content = (
+            SCANNER_SYSTEM_PROMPT
+            + "\n\nIMPORTANT: Respond with ONLY a valid JSON object. "
+            + "Do NOT include any text before or after the JSON.\n\n"
+            + "{format_instructions}"
+        )
         instruction_text = parser.get_format_instructions()
         system_msg = SystemMessage(content=system_content.replace("{format_instructions}", instruction_text))
         
@@ -31,16 +57,32 @@ def scan_outfit(state: AgentState) -> AgentState:
         
         if state.get("image_base64"):
             messages.append(HumanMessage(content=[
-                {"type": "text", "text": "Analyze this outfit."},
+                {"type": "text", "text": "Analyze this outfit. Respond with ONLY JSON."},
                 {"type": "image_url", "image_url": {"url": state["image_base64"]}}
             ]))
         elif state.get("text_description"):
-            messages.append(HumanMessage(content=state["text_description"]))
+            messages.append(HumanMessage(content=state["text_description"] + "\n\nRespond with ONLY JSON."))
         else:
             raise ValueError("No image or text description provided.")
             
         print(f"Calling NVIDIA NIM Vision Model: {model_name}...")
-        result_dict = (llm | parser).invoke(messages)
+        
+        # Try the standard parser first
+        try:
+            result_dict = await (llm | parser).ainvoke(messages)
+        except Exception as parse_err:
+            print(f"Parser failed, attempting manual JSON extraction: {parse_err}")
+            # Fallback: get raw text and extract JSON manually
+            raw_response = await llm.ainvoke(messages)
+            raw_text = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
+            result_dict = _extract_json_from_text(raw_text)
+            if not result_dict:
+                raise ValueError(f"Could not extract JSON from model response: {raw_text[:200]}")
+        
+        # Handle case where parser returns a list instead of dict
+        if isinstance(result_dict, list):
+            print("Parser returned a list, wrapping in dict...")
+            result_dict = {"detected_items": result_dict, "color_palette": []}
         
         # Parse into Pydantic model
         result = ScanResult(**result_dict)

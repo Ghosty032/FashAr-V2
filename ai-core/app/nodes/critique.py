@@ -6,7 +6,7 @@ from app.schemas.models import CritiqueResult
 from app.prompts.prompts import CRITIC_SYSTEM_PROMPT
 import app.config  # ensures API key is loaded
 
-def critique_outfit(state: AgentState) -> AgentState:
+async def critique_outfit(state: AgentState) -> dict:
     """
     Node 2: Takes the factual scan and the user context (occasion, avatar) 
     and returns a brutal but constructive critique + score.
@@ -14,8 +14,8 @@ def critique_outfit(state: AgentState) -> AgentState:
     print("--- [NODE] Critiquing Outfit ---")
     
     try:
-        # Use Qwen/Llama 3 70B for faster reasoning instead of the massive 405B
-        llm = ChatNVIDIA(model="meta/llama-3.1-70b-instruct", temperature=0.6)
+        # Use Llama 3.1 405B for deep reasoning
+        llm = ChatNVIDIA(model="meta/llama-3.1-405b-instruct", temperature=0.6)
         parser = JsonOutputParser(pydantic_object=CritiqueResult)
         
         scan = state.get("scan_result")
@@ -44,7 +44,7 @@ def critique_outfit(state: AgentState) -> AgentState:
         ]
         
         print("Calling NVIDIA NIM Critique Model...")
-        result_dict = (llm | parser).invoke(messages)
+        result_dict = await (llm | parser).ainvoke(messages)
         
         # Parse into Pydantic model
         result = CritiqueResult(**result_dict)

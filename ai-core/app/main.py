@@ -27,6 +27,11 @@ app.add_middleware(
 def health_check():
     return {"status": "AI Core running with NVIDIA NIM Llama 3.2 Vision"}
 
+@app.post("/ping")
+async def ping(text: str = Form(...)):
+    print(f"Ping received: {text}")
+    return {"status": "ok", "text": text}
+
 @app.post("/analyze", response_model=FinalAnalysis)
 async def analyze_outfit(
     image: Optional[UploadFile] = File(None),
@@ -41,9 +46,13 @@ async def analyze_outfit(
     Main endpoint for analyzing an outfit via LangGraph. 
     Accepts Multipart Form Data because it might contain a File object.
     """
+    print(f"\n--- INCOMING /analyze REQUEST ---")
+    print(f"text_description: {text_description}")
+    print(f"occasion: {occasion_tier_1}")
     
     # 1. Validate Input
     if not image and not text_description:
+        print("Failed validation: no image/text")
         raise HTTPException(status_code=400, detail="Must provide either an image array buffer or text_description.")
 
     # 2. Process Image to Base64 (if exists)
@@ -76,11 +85,11 @@ async def analyze_outfit(
         "body_type": parsed_body_type
     }
     
-    # The LangGraph stream / invoke will run the nodes synchronously
+    # The LangGraph stream / invoke will run the nodes asynchronously inside FastAPI's event loop
     print("Starting Fashr LangGraph Workflow...")
     try:
         # returns the final AgentState
-        result = fashr_graph.invoke(inputs) 
+        result = await fashr_graph.ainvoke(inputs) 
     except Exception as e:
         print(f"Graph execution failed: {e}")
         raise HTTPException(status_code=500, detail="The AI execution pipeline failed.")
