@@ -1,90 +1,125 @@
-# FASHR V2 — AI-Powered Personal Stylist
+# FashAr — AI-Powered Personal Stylist
 
-> Eliminate outfit anxiety. Get instant, constructive feedback on what you're wearing and discover the perfect completer piece.
+![FashAr Banner](https://img.shields.io/badge/Status-V2.0_Out_Now-indigo?style=for-the-badge) ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
 
-## Tech Stack
+**Ditch outfit anxiety. Dress with Aura.**
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | Next.js + Tailwind CSS |
-| **Animation** | Framer Motion + GSAP |
-| **AI Core** | Python / FastAPI + LangGraph |
-| **API Gateway** | Node.js (Express/Fastify) |
-| **Core LLM** | NVIDIA NIM Qwen 3.5 |
-| **Vector DB** | Pinecone |
-| **Relational DB** | Supabase (Postgres) |
-| **Auth** | Clerk / NextAuth.js |
-| **CI/CD** | GitHub Actions → Vercel + Railway |
+FashAr is a next-generation, AI-driven personal styling application that provides immediate, objective feedback on your daily outfits. By uploading a simple mirror selfie, FashAr's state-of-the-art multimodal vision model analyzes your silhouette, color palette, and proportions in seconds to discover the exact missing piece needed to complete your look.
 
-## Project Structure
+[**Deployed Demo** (Coming Soon)](#)
 
-```
-FashAr/
-├── frontend/          # Next.js app (App Router)
-│   ├── app/           # Pages & layouts
-│   ├── components/    # React components
-│   ├── lib/           # Client utilities
-│   └── public/        # Static assets
-├── gateway/           # Node.js API gateway
-│   └── src/
-├── ai-core/           # Python FastAPI + LangGraph
-│   ├── app/
-│   │   ├── nodes/     # LangGraph nodes (scan, critique, retrieve, respond)
-│   │   ├── prompts/   # Qwen prompt templates
-│   │   ├── schemas/   # Pydantic models
-│   │   └── services/  # Pinecone, weather, link-validation
-│   └── tests/
-├── scripts/           # Data seeding, cron jobs
-├── .env               # API keys (never commit)
-└── .gitignore
-```
+---
 
-## Getting Started
+## ✨ Core Features
 
-### Prerequisites
+- 📸 **Instant Expert Critique**
+  Upload an outfit photo, and our AI vision model (NVIDIA NIM Qwen-VL) evaluates it based on color cohesion, occasion appropriateness, and silhouette fit.
 
-- Node.js 20+
-- Python 3.12 (conda venv at `.venv/`)
-- API keys for: NVIDIA NIM, Pinecone, Supabase, Clerk, OpenWeatherMap
+- 🔍 **Find the Gap**
+  Missing a jacket? Need better footwear? FashAr identifies exactly what is holding your outfit back from a perfect 100 style score.
 
-### Setup
+- 🛍️ **Smart Completers (RAG)**
+  Using a Vector Database (Pinecone), FashAr searches your personal virtual closet (or a defined catalog) to recommend real, purchasable items that perfectly fill the identified style gap.
 
+- 🌤️ **Context-Aware Styling**
+  Integrates real-time local weather data (OpenWeatherMap) and intelligent persona tracking to ensure recommendations are actually wearable today.
+
+- 🌗 **Premium UI & Dark Mode**
+  A sleek, glassmorphism-inspired interface built with Next.js 15, Tailwind CSS 4.0, and dynamic animations, featuring a seamless, automatic dark mode.
+
+---
+
+## 🛠️ Tech Stack
+
+**Frontend (Web App)**
+- **Framework:** Next.js 15 (App Router), React 19
+- **Styling:** Tailwind CSS 4.0 (Custom class-based Dark Mode)
+- **Authentication:** Clerk
+- **UI Components:** Sonner (Toast notifications), Lucide React (Icons)
+- **Deployment:** Vercel (Planned)
+
+**Backend (AI Engine & API)**
+- **Framework:** Python, FastAPI, Uvicorn
+- **AI/LLM Routing:** LangGraph (Stateful analysis workflow)
+- **Vision Model:** NVIDIA NIM API (Qwen 3.5 VL 72b)
+- **Databases:** 
+  - Supabase (PostgreSQL) for user data & outfit history
+  - Pinecone for Vector Embeddings (RAG closet search)
+- **Deployment:** Render / Railway (Planned)
+
+---
+
+## 🚀 Local Development Setup
+
+### 1. Clone the repository
 ```bash
-# 1. Clone the repo
-git clone <repo-url> && cd FashAr
-
-# 2. Activate the Python venv
-conda activate .venv
-
-# 3. Fill in your API keys
-# Edit .env with your actual keys
-
-# 4. Install frontend dependencies (Phase 1+)
-cd frontend && npm install
-
-# 5. Install AI core dependencies (Phase 3+)
-cd ai-core && pip install -r requirements.txt
-
-# 6. Start the dev servers
-# Frontend:  cd frontend && npm run dev
-# Gateway:   cd gateway && npm run dev
-# AI Core:   cd ai-core && uvicorn app.main:app --reload
+git clone https://github.com/Ghosty032/FashAr-V2.git
+cd FashAr-V2
 ```
 
-## Development Phases
+### 2. Backend Setup (AI Core)
+Navigate to the backend folder and set up a Python virtual environment:
+```bash
+cd ai-core
+python -m venv .venv
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| 0 | Environment & Tooling Setup | ✅ |
-| 1 | Database & Auth Foundation | ⬜ |
-| 2 | Frontend Input Layer (Scanner) | ⬜ |
-| 3 | AI Core Setup (Python Backend) | ⬜ |
-| 4 | Pinecone RAG (The Closet) | ⬜ |
-| 5 | Weather Integration | ⬜ |
-| 6 | Node.js API Gateway | ⬜ |
-| 7 | Frontend Results UI (Bento Grid) | ⬜ |
-| 8 | Feedback Loop & Reranking | ⬜ |
-| 9 | Link Validation & Product Freshness | ⬜ |
-| 10 | History, Data Retention & Privacy | ⬜ |
-| 11 | Testing & Parallel Run | ⬜ |
-| 12 | Deployment & CI/CD | ⬜ |
+# Activate virtual environment
+# Windows:
+.venv\Scripts\activate
+# Mac/Linux:
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+Create a `.env` file in the `ai-core` directory:
+```env
+NVIDIA_API_KEY=your_nvidia_api_key
+OPENWEATHER_API_KEY=your_openweathermap_api_key
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_service_key
+PINECONE_API_KEY=your_pinecone_api_key
+PINECONE_INDEX=fashar-wardrobe
+```
+
+Run the backend server:
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+### 3. Frontend Setup
+Open a new terminal, navigate to the frontend folder, and install dependencies:
+```bash
+cd frontend
+npm install
+```
+
+Create a `.env.local` file in the `frontend` directory:
+```env
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
+CLERK_SECRET_KEY=your_clerk_secret_key
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Fast API URL
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+Run the frontend development server:
+```bash
+npm run dev
+```
+
+Visit `http://localhost:3000` in your browser.
+
+---
+
+## 📸 Screenshots
+
+*(Add screenshots of your application here once deployed! Consider adding the Landing Page, the Scanner interface, and the Results Dashboard)*
+
+---
+
+## 📄 License
+This project is licensed under the MIT License.
