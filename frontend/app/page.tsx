@@ -17,15 +17,15 @@ export default function Home() {
     <div className="min-h-screen flex flex-col items-center selection:bg-indigo-100 selection:text-indigo-900 dark:selection:bg-indigo-900 dark:selection:text-indigo-100 bg-gray-50 dark:bg-black overflow-hidden transition-colors duration-300">
       {/* Header */}
       <div className="w-full max-w-5xl flex items-center justify-between px-6 py-6 z-10 bg-white/70 dark:bg-transparent backdrop-blur-md dark:backdrop-blur-none border border-white/40 dark:border-transparent sticky top-0 rounded-b-3xl transition-colors">
-        <a 
-          href="/" 
+        <a
+          href="/"
           onClick={(e) => {
             if (isAppOpen) {
               e.preventDefault();
               setIsAppOpen(false); // Soft reset to landing page
             }
           }}
-          className="flex items-center gap-2 group cursor-pointer" 
+          className="flex items-center gap-2 group cursor-pointer"
           title="Go to home"
         >
           <div className="bg-black dark:bg-white/10 text-white p-1.5 rounded-lg group-hover:scale-110 transition-transform">
@@ -76,12 +76,12 @@ export default function Home() {
 
             <div className="animate-fade-in-up delay-300">
               {isSignedIn ? (
-                <button 
+                <button
                   onClick={() => setIsAppOpen(true)}
                   className="group relative inline-flex items-center gap-2 bg-black dark:bg-white text-white dark:text-black px-8 py-4 rounded-2xl font-semibold hover:scale-105 active:scale-95 transition-all shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_30px_rgb(255,255,255,0.12)] overflow-hidden"
                 >
                   <span className="absolute inset-0 bg-white/20 dark:bg-black/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
-                  <span className="relative">Enter the App</span>
+                  <span className="relative">Start Analyzing</span>
                   <ArrowRight className="w-5 h-5 relative group-hover:translate-x-1 transition-transform" />
                 </button>
               ) : (
