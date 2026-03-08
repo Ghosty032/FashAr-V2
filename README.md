@@ -71,20 +71,4 @@ cd ai-core && pip install -r requirements.txt
 # AI Core:   cd ai-core && uvicorn app.main:app --reload
 ```
 
-## Development Phases
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| 0 | Environment & Tooling Setup | ✅ |
-| 1 | Database & Auth Foundation | ⬜ |
-| 2 | Frontend Input Layer (Scanner) | ⬜ |
-| 3 | AI Core Setup (Python Backend) | ⬜ |
-| 4 | Pinecone RAG (The Closet) | ⬜ |
-| 5 | Weather Integration | ⬜ |
-| 6 | Node.js API Gateway | ⬜ |
-| 7 | Frontend Results UI (Bento Grid) | ⬜ |
-| 8 | Feedback Loop & Reranking | ⬜ |
-| 9 | Link Validation & Product Freshness | ⬜ |
-| 10 | History, Data Retention & Privacy | ⬜ |
-| 11 | Testing & Parallel Run | ⬜ |
-| 12 | Deployment & CI/CD | ⬜ |
