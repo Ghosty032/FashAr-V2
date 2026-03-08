@@ -133,7 +133,7 @@ export default function Home() {
       {/* Footer */}
       {!isAppOpen && (
         <footer className="w-full border-t border-gray-100 dark:border-gray-900 py-8 text-center text-sm text-gray-400 z-10 bg-white dark:bg-black transition-colors duration-300">
-          <p>© {new Date().getFullYear()} FASHR. Built with LangGraph, Next.js, and Pinecone.</p>
+          <p>© {new Date().getFullYear()} FASHR. Powered by LangGraph and Pinecone.</p>
         </footer>
       )}
     </div>
