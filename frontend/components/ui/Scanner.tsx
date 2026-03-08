@@ -203,11 +203,28 @@ export default function Scanner({ onAnalysisComplete }: ScannerProps) {
       <button
         onClick={handleSubmit}
         disabled={!canSubmit || isAnalyzing}
-        className="w-full flex items-center justify-center gap-2 bg-black text-white py-3.5 px-6 rounded-xl font-medium hover:bg-gray-900 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-gray-200"
+        className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white py-4 px-6 rounded-2xl font-semibold hover:bg-black transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.2)] hover:-translate-y-0.5 active:translate-y-0"
       >
         <ScanLine className="w-5 h-5" />
-        {isAnalyzing ? "Analyzing…" : "Analyze My Outfit"}
+        Analyze My Outfit
       </button>
+
+      {/* Phase 8: Premium Loading Overlay */}
+      {isAnalyzing && (
+        <div className="absolute inset-0 z-50 glass-card rounded-3xl flex flex-col items-center justify-center animate-fade-in">
+          <div className="relative flex items-center justify-center w-20 h-20 mb-6">
+            {/* Spinning gradient ring */}
+            <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-indigo-500 border-r-indigo-500 animate-spin" />
+            <div className="absolute inset-2 rounded-full border-4 border-transparent border-b-violet-500 border-l-violet-500 animate-spin-slow" />
+            <ScanLine className="w-8 h-8 text-gray-900 animate-pulse" />
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Analyzing Outfit</h3>
+          <p className="text-sm text-gray-500 animate-pulse text-center px-6">
+            Running 122B parameter vision model...<br/>
+            Evaluating silhouette, gap, and colors.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

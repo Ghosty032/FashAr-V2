@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FinalAnalysis } from "@/lib/types/ai";
 import { CheckCircle2, AlertTriangle, RefreshCw, ShoppingBag, Cloud, Sun, CloudRain, Snowflake, Thermometer, Star } from "lucide-react";
 import { toast } from "sonner";
@@ -63,23 +63,44 @@ export default function Results({ data, onReset }: { data: FinalAnalysis, onRese
 
   const isComplete = style_score >= 90;
 
+  // Phase 8: Animated Score Counter
+  const [displayScore, setDisplayScore] = useState(0);
+  
+  useEffect(() => {
+    let start = 0;
+    const end = style_score;
+    if (start === end) return;
+    
+    let totalDuration = 1500;
+    let incrementTime = (totalDuration / end);
+    
+    let timer = setInterval(() => {
+      start += 1;
+      setDisplayScore(start);
+      if (start === end) clearInterval(timer);
+    }, incrementTime);
+    
+    return () => clearInterval(timer);
+  }, [style_score]);
+
+
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="w-full max-w-4xl mx-auto space-y-6">
       
       {/* Header / Score Ring */}
       <div className="flex flex-col md:flex-row gap-6">
         
         {/* Style Score Card */}
-        <div className={`flex flex-col items-center justify-center p-8 rounded-3xl border border-gray-100 shadow-sm ${getScoreColor(style_score)} w-full md:w-1/3 text-center`}>
-          <div className="text-6xl font-black tracking-tighter mb-2">{style_score}</div>
+        <div className={`flex flex-col items-center justify-center p-8 rounded-3xl border border-gray-100 shadow-sm ${getScoreColor(style_score)} w-full md:w-1/3 text-center animate-fade-in-up`}>
+          <div className="text-6xl font-black tracking-tighter mb-2 tabular-nums">{displayScore}</div>
           <div className="text-sm font-medium uppercase tracking-widest opacity-80">Style Score</div>
-          <div className="mt-4 text-xs font-medium bg-white/50 px-3 py-1 rounded-full border border-black/5">
+          <div className="mt-4 text-xs font-medium bg-white/50 px-3 py-1 rounded-full border border-black/5 animate-fade-in delay-500">
             {isComplete ? "Outfit Complete" : `Gap: ${gap_type.toUpperCase()}`}
           </div>
         </div>
 
         {/* Narrative Critique */}
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm w-full md:w-2/3 flex flex-col justify-center">
+        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm w-full md:w-2/3 flex flex-col justify-center animate-fade-in-up delay-100">
           <h3 className="text-lg font-bold mb-3 text-gray-900">Expert Critique</h3>
           <p className="text-gray-600 leading-relaxed text-sm">
             {narrative_critique}
@@ -112,7 +133,7 @@ export default function Results({ data, onReset }: { data: FinalAnalysis, onRese
         
         {/* Weather Tile (Phase 5) */}
         {weather && (
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-3xl border border-blue-100 shadow-sm flex flex-col items-center justify-center text-center">
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-3xl border border-blue-100 shadow-sm flex flex-col items-center justify-center text-center animate-fade-in-up delay-200">
             <div className="mb-3">{getWeatherIcon(weather.condition)}</div>
             <div className="flex items-center gap-1 mb-1">
               <Thermometer className="w-4 h-4 text-gray-500" />
@@ -128,7 +149,7 @@ export default function Results({ data, onReset }: { data: FinalAnalysis, onRese
           </div>
         )}
 
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm animate-fade-in-up delay-300">
           <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-4">Color Palette</h3>
           <div className="flex gap-3">
             {color_palette.map((color, idx) => (
