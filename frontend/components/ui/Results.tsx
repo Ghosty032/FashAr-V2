@@ -1,10 +1,42 @@
 "use client";
 
+import { useState } from "react";
 import { FinalAnalysis } from "@/lib/types/ai";
-import { CheckCircle2, AlertTriangle, RefreshCw, ShoppingBag, Cloud, Sun, CloudRain, Snowflake, Thermometer } from "lucide-react";
+import { CheckCircle2, AlertTriangle, RefreshCw, ShoppingBag, Cloud, Sun, CloudRain, Snowflake, Thermometer, Star } from "lucide-react";
+import { toast } from "sonner";
 
 export default function Results({ data, onReset }: { data: FinalAnalysis, onReset: () => void }) {
   const { style_score, score_breakdown, narrative_critique, gap_type, color_palette, detected_items, recommended_products, weather } = data;
+
+  // Phase 7: Track ratings per product { [product_id]: rating }
+  const [ratings, setRatings] = useState<Record<string, number>>({});
+  const [ratingLoading, setRatingLoading] = useState<string | null>(null);
+
+  const handleRate = async (productId: string, rating: number) => {
+    // Optimistic update
+    setRatings((prev) => ({ ...prev, [productId]: rating }));
+    setRatingLoading(productId);
+
+    try {
+      const res = await fetch("/api/rate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product_id: productId, rating }),
+      });
+      if (!res.ok) throw new Error("Failed to save rating");
+      toast.success(`Rated ${rating}★`);
+    } catch {
+      toast.error("Could not save rating");
+      // Revert on failure
+      setRatings((prev) => {
+        const next = { ...prev };
+        delete next[productId];
+        return next;
+      });
+    } finally {
+      setRatingLoading(null);
+    }
+  };
 
   // Determine score color
   const getScoreColor = (score: number) => {
@@ -128,7 +160,7 @@ export default function Results({ data, onReset }: { data: FinalAnalysis, onRese
         </div>
       </div>
 
-      {/* Recommendations (The Closet) */}
+      {/* Recommendations (The Closet) — Phase 7: with star ratings */}
       {!isComplete && recommended_products && recommended_products.length > 0 && (
         <div className="bg-white p-6 md:p-8 rounded-3xl border border-gray-100 shadow-sm">
           <div className="mb-6">
@@ -141,24 +173,50 @@ export default function Results({ data, onReset }: { data: FinalAnalysis, onRese
           
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {recommended_products.map((product) => (
-              <a 
+              <div 
                 key={product.product_id} 
-                href={product.buy_link} 
-                target="_blank" 
-                rel="noreferrer"
-                className="group block p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-white hover:shadow-md hover:border-gray-200 transition-all"
+                className="group p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-white hover:shadow-md hover:border-gray-200 transition-all"
               >
-                <div className="aspect-square bg-gray-200 rounded-lg mb-4 flex items-center justify-center text-gray-400 text-xs overflow-hidden relative">
-                  {/* Placeholder for real product image */}
-                  <span className="uppercase tracking-widest font-bold opacity-30">{product.brand}</span>
+                <a href={product.buy_link} target="_blank" rel="noreferrer">
+                  <div className="aspect-square bg-gray-200 rounded-lg mb-4 flex items-center justify-center text-gray-400 text-xs overflow-hidden relative">
+                    <span className="uppercase tracking-widest font-bold opacity-30">{product.brand}</span>
+                  </div>
+                  <h4 className="font-semibold text-gray-900 text-sm mb-1 group-hover:text-indigo-600 transition-colors line-clamp-1">{product.title}</h4>
+                  <p className="text-xs text-gray-500 line-clamp-2">{product.description}</p>
+                  <div className="mt-3 flex items-center justify-between text-xs font-medium">
+                    <span className="text-gray-400">{product.brand}</span>
+                    <span className="text-indigo-600">View →</span>
+                  </div>
+                </a>
+
+                {/* Phase 7: Star Rating Widget */}
+                <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+                  <div className="flex gap-0.5">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => handleRate(product.product_id, star)}
+                        disabled={ratingLoading === product.product_id}
+                        className="p-0.5 transition-transform hover:scale-110 disabled:opacity-50"
+                        title={`Rate ${star} star${star > 1 ? "s" : ""}`}
+                      >
+                        <Star
+                          className={`w-4 h-4 transition-colors ${
+                            (ratings[product.product_id] || 0) >= star
+                              ? "text-amber-400 fill-amber-400"
+                              : "text-gray-300"
+                          }`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  {ratings[product.product_id] && (
+                    <span className="text-[10px] text-gray-400 font-medium">
+                      {ratings[product.product_id]}★ saved
+                    </span>
+                  )}
                 </div>
-                <h4 className="font-semibold text-gray-900 text-sm mb-1 group-hover:text-indigo-600 transition-colors line-clamp-1">{product.title}</h4>
-                <p className="text-xs text-gray-500 line-clamp-2">{product.description}</p>
-                <div className="mt-4 flex items-center justify-between text-xs font-medium">
-                  <span className="text-gray-400">{product.brand}</span>
-                  <span className="text-indigo-600">View →</span>
-                </div>
-              </a>
+              </div>
             ))}
           </div>
         </div>
