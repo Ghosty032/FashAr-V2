@@ -51,6 +51,14 @@ class RecommendedProduct(BaseModel):
     rating_count: int
     relevance_score: float
 
+class WeatherInfo(BaseModel):
+    """Live weather data returned to the frontend for display."""
+    temp_c: float
+    condition: str
+    description: str
+    city: str
+    weather_note: str = ""
+
 class FinalAnalysis(BaseModel):
     """Combined object to return to the frontend via FastAPI"""
     detected_items: List[DetectedItem]
@@ -60,3 +68,5 @@ class FinalAnalysis(BaseModel):
     narrative_critique: str
     gap_type: str
     recommended_products: List[RecommendedProduct] = []
+    weather: Optional[WeatherInfo] = None
+

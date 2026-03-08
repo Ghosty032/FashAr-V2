@@ -32,6 +32,14 @@ export interface RecommendedProduct {
   relevance_score: number;
 }
 
+export interface WeatherInfo {
+  temp_c: number;
+  condition: string;
+  description: string;
+  city: string;
+  weather_note: string;
+}
+
 export interface FinalAnalysis {
   detected_items: DetectedItem[];
   color_palette: ColorPalette[];
@@ -40,4 +48,6 @@ export interface FinalAnalysis {
   narrative_critique: string;
   gap_type: string;
   recommended_products: RecommendedProduct[];
+  weather?: WeatherInfo;
 }
+

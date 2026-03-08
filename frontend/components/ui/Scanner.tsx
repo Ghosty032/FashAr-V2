@@ -58,6 +58,19 @@ export default function Scanner({ onAnalysisComplete }: ScannerProps) {
 
     setIsAnalyzing(true);
     try {
+      // Phase 5: Capture geolocation (non-blocking — skip if denied)
+      let latitude: number | null = null;
+      let longitude: number | null = null;
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+        });
+        latitude = pos.coords.latitude;
+        longitude = pos.coords.longitude;
+      } catch {
+        console.log("[Scanner] Geolocation denied or unavailable, proceeding without weather.");
+      }
+
       // Build FormData exactly matching FastAPI expectations
       const formData = new FormData();
       if (mode === "image" && imageFile) {
@@ -70,9 +83,12 @@ export default function Scanner({ onAnalysisComplete }: ScannerProps) {
       if (occasionTier2.trim()) formData.append("occasion_tier_2", occasionTier2.trim());
       formData.append("style_persona", persona);
 
-      // (Optional) If we had the user context from Clerk/Supabase we would append gender/body_type here.
-      // E.g., formData.append("gender", "mens");
-      
+      // Phase 5: Append coordinates if available
+      if (latitude !== null && longitude !== null) {
+        formData.append("latitude", latitude.toString());
+        formData.append("longitude", longitude.toString());
+      }
+
       const response = await fetch("/api/analyze", {
         method: "POST",
         body: formData,

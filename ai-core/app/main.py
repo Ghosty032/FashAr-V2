@@ -5,10 +5,11 @@ from typing import Optional
 import base64
 
 from app.graph import app as fashr_graph
-from app.schemas.models import FinalAnalysis, DetectedItem, ColorPalette, ScoreBreakdown, RecommendedProduct
+from app.schemas.models import FinalAnalysis, DetectedItem, ColorPalette, ScoreBreakdown, RecommendedProduct, WeatherInfo
+from app.services.weather_service import get_weather
 
 # =========================================================================================
-# PHASE 3 - FASTAPI ENTRY POINT
+# PHASE 3+5 - FASTAPI ENTRY POINT
 # Exposes the /analyze endpoint to the NextJS frontend
 # =========================================================================================
 
@@ -27,11 +28,6 @@ app.add_middleware(
 def health_check():
     return {"status": "AI Core running with NVIDIA NIM Llama 3.2 Vision"}
 
-@app.post("/ping")
-async def ping(text: str = Form(...)):
-    print(f"Ping received: {text}")
-    return {"status": "ok", "text": text}
-
 @app.post("/analyze", response_model=FinalAnalysis)
 async def analyze_outfit(
     image: Optional[UploadFile] = File(None),
@@ -40,7 +36,9 @@ async def analyze_outfit(
     occasion_tier_2: Optional[str] = Form(None),
     style_persona: str = Form(...),
     gender: str = Form("unisex"),
-    body_type: str = Form("[]")  # Send stringified JSON array from frontend
+    body_type: str = Form("[]"),
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
 ):
     """
     Main endpoint for analyzing an outfit via LangGraph. 
@@ -49,10 +47,10 @@ async def analyze_outfit(
     print(f"\n--- INCOMING /analyze REQUEST ---")
     print(f"text_description: {text_description}")
     print(f"occasion: {occasion_tier_1}")
+    print(f"coordinates: ({latitude}, {longitude})")
     
     # 1. Validate Input
     if not image and not text_description:
-        print("Failed validation: no image/text")
         raise HTTPException(status_code=400, detail="Must provide either an image array buffer or text_description.")
 
     # 2. Process Image to Base64 (if exists)
@@ -60,7 +58,6 @@ async def analyze_outfit(
     if image:
         contents = await image.read()
         b64_str = base64.b64encode(contents).decode("utf-8")
-        # Format the base64 correctly for OpenAI/NVIDIA Vision apis
         mime_type = image.content_type or "image/jpeg"
         image_base64 = f"data:{mime_type};base64,{b64_str}"
 
@@ -74,21 +71,26 @@ async def analyze_outfit(
     except:
         parsed_body_type = []
 
-    # 4. Invoke the LangGraph Pipeline
-    # Pass our initial AgentState dictionary
+    # 4. Phase 5 — Fetch weather data if coordinates provided
+    weather_context = {}
+    if latitude is not None and longitude is not None:
+        weather_context = await get_weather(latitude, longitude)
+
+    # 5. Invoke the LangGraph Pipeline
     inputs = {
         "text_description": text_description,
         "image_base64": image_base64,
         "occasion": full_occasion,
         "style_persona": style_persona,
         "gender": gender,
-        "body_type": parsed_body_type
+        "body_type": parsed_body_type,
+        "latitude": latitude,
+        "longitude": longitude,
+        "weather_context": weather_context,
     }
     
-    # The LangGraph stream / invoke will run the nodes asynchronously inside FastAPI's event loop
     print("Starting Fashr LangGraph Workflow...")
     try:
-        # returns the final AgentState
         result = await fashr_graph.ainvoke(inputs) 
     except Exception as e:
         print(f"Graph execution failed: {e}")
@@ -100,11 +102,22 @@ async def analyze_outfit(
     if not critique or not scan:
         raise HTTPException(status_code=500, detail="AI returned empty or invalid results. Check NIM API limits or endpoints.")
 
-    # 5. Build the recommended products list from RAG results
+    # 6. Build the recommended products list from RAG results
     raw_products = result.get("recommended_products", [])
     products = [RecommendedProduct(**p) for p in raw_products] if raw_products else []
 
-    # 6. Assemble the final response
+    # 7. Build weather info for the frontend
+    weather_info = None
+    if weather_context:
+        weather_info = WeatherInfo(
+            temp_c=weather_context.get("temp_c", 0),
+            condition=weather_context.get("condition", "unknown"),
+            description=weather_context.get("description", ""),
+            city=weather_context.get("city", "Unknown"),
+            weather_note=weather_context.get("weather_note", ""),
+        )
+
+    # 8. Assemble the final response
     final_output = FinalAnalysis(
         detected_items=scan.detected_items,
         color_palette=scan.color_palette,
@@ -112,7 +125,9 @@ async def analyze_outfit(
         score_breakdown=critique.score_breakdown,
         narrative_critique=critique.narrative_critique,
         gap_type=critique.gap_type,
-        recommended_products=products
+        recommended_products=products,
+        weather=weather_info,
     )
 
     return final_output
+

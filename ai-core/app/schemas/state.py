@@ -15,9 +15,15 @@ class AgentState(TypedDict):
     gender: str
     body_type: List[str]
     
+    # Phase 5 — Weather context
+    latitude: Optional[float]
+    longitude: Optional[float]
+    weather_context: Optional[Dict[str, Any]]
+    
     # Internal AI Pipeline Data
     scan_result: Optional[ScanResult]
     critique_result: Optional[CritiqueResult]
     
     # Phase 4 — Pinecone RAG results
     recommended_products: List[Dict[str, Any]]
+

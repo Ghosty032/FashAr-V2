@@ -1,10 +1,10 @@
 "use client";
 
 import { FinalAnalysis } from "@/lib/types/ai";
-import { CheckCircle2, AlertTriangle, RefreshCw, ShoppingBag } from "lucide-react";
+import { CheckCircle2, AlertTriangle, RefreshCw, ShoppingBag, Cloud, Sun, CloudRain, Snowflake, Thermometer } from "lucide-react";
 
 export default function Results({ data, onReset }: { data: FinalAnalysis, onReset: () => void }) {
-  const { style_score, score_breakdown, narrative_critique, gap_type, color_palette, detected_items, recommended_products } = data;
+  const { style_score, score_breakdown, narrative_critique, gap_type, color_palette, detected_items, recommended_products, weather } = data;
 
   // Determine score color
   const getScoreColor = (score: number) => {
@@ -12,6 +12,21 @@ export default function Results({ data, onReset }: { data: FinalAnalysis, onRese
     if (score >= 70) return "text-green-600 bg-green-50";
     if (score >= 40) return "text-orange-500 bg-orange-50";
     return "text-red-500 bg-red-50";
+  };
+
+  const getWeatherIcon = (condition: string) => {
+    switch (condition) {
+      case "rain":
+      case "drizzle":
+      case "thunderstorm":
+        return <CloudRain className="w-8 h-8 text-blue-400" />;
+      case "snow":
+        return <Snowflake className="w-8 h-8 text-cyan-300" />;
+      case "clear":
+        return <Sun className="w-8 h-8 text-amber-400" />;
+      default:
+        return <Cloud className="w-8 h-8 text-gray-400" />;
+    }
   };
 
   const isComplete = style_score >= 90;
@@ -60,9 +75,28 @@ export default function Results({ data, onReset }: { data: FinalAnalysis, onRese
         </div>
       </div>
 
-      {/* Colors & Detected Items */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+      {/* Weather + Colors + Detected Items */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        {/* Weather Tile (Phase 5) */}
+        {weather && (
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-3xl border border-blue-100 shadow-sm flex flex-col items-center justify-center text-center">
+            <div className="mb-3">{getWeatherIcon(weather.condition)}</div>
+            <div className="flex items-center gap-1 mb-1">
+              <Thermometer className="w-4 h-4 text-gray-500" />
+              <span className="text-2xl font-bold text-gray-800">{weather.temp_c}°C</span>
+            </div>
+            <div className="text-sm font-medium text-gray-600 capitalize">{weather.description}</div>
+            <div className="text-xs text-gray-400 mt-1">{weather.city}</div>
+            {weather.weather_note && (
+              <div className="mt-3 text-[11px] text-blue-600 bg-blue-100/50 px-3 py-1.5 rounded-lg leading-tight">
+                {weather.weather_note}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className={`bg-white p-6 rounded-3xl border border-gray-100 shadow-sm ${!weather ? "md:col-span-1" : ""}`}>
           <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-4">Color Palette</h3>
           <div className="flex gap-3">
             {color_palette.map((color, idx) => (
@@ -144,3 +178,4 @@ export default function Results({ data, onReset }: { data: FinalAnalysis, onRese
     </div>
   );
 }
+
