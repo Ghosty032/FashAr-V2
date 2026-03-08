@@ -3,7 +3,6 @@ import { currentUser } from "@clerk/nextjs/server";
 import { Sparkles, Camera, Search, ShoppingBag, ArrowRight } from "lucide-react";
 import MainApp from "@/components/ui/MainApp";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import Link from "next/link";
 
 export default async function Home() {
   const user = await currentUser();
@@ -12,12 +11,12 @@ export default async function Home() {
     <div className="min-h-screen flex flex-col items-center selection:bg-indigo-100 selection:text-indigo-900 dark:selection:bg-indigo-900 dark:selection:text-indigo-100 bg-gray-50 dark:bg-black overflow-hidden transition-colors duration-300">
       {/* Header */}
       <div className="w-full max-w-5xl flex items-center justify-between px-6 py-6 z-10 bg-white/70 dark:bg-transparent backdrop-blur-md dark:backdrop-blur-none border border-white/40 dark:border-transparent sticky top-0 rounded-b-3xl transition-colors">
-        <Link href="/" className="flex items-center gap-2 group cursor-pointer" title="Go to home">
+        <a href="/" className="flex items-center gap-2 group cursor-pointer" title="Go to home">
           <div className="bg-black dark:bg-white/10 text-white p-1.5 rounded-lg group-hover:scale-110 transition-transform">
             <Sparkles className="w-5 h-5" />
           </div>
           <span className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">FASHR</span>
-        </Link>
+        </a>
 
         <div className="flex items-center gap-4">
           <ThemeToggle />
