@@ -1,4 +1,4 @@
-# FashAr — AI-Powered Personal Stylist
+# FashAr —Your AI-Powered Personal Stylist
 
 ![FashAr Banner](https://img.shields.io/badge/Status-V2.0_Out_Now-indigo?style=for-the-badge) ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
 
