@@ -17,9 +17,9 @@ export async function POST(request: Request) {
     // 3. Optional: Validate the data before sending to Python
     // (We assumed the client does basic validation like occasion, persona, etc.)
 
-    // 4. Forward the exact FormData directly to the local Python FastAPI instance
-    // Note: Python is running on port 8001
-    const pythonEndpoint = "http://127.0.0.1:8001/analyze";
+    // 4. Forward the exact FormData directly to the Python FastAPI instance
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001";
+    const pythonEndpoint = `${baseUrl.replace(/\/$/, '')}/analyze`;
     
     console.log("[NextJS Gateway] Forwarding request to AI Core...");
     const aiResponse = await fetch(pythonEndpoint, {
