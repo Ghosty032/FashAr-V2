@@ -7,4 +7,3 @@ langchain-core
 langchain-nvidia-ai-endpoints
 langgraph
 pinecone
-langchain-pinecone
