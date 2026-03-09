@@ -15,10 +15,10 @@ from app.services.weather_service import get_weather
 
 app = FastAPI(title="FASHR AI Core", version="0.1.0")
 
-# Allow requests from Next.js (port 3000)
+# Allow requests from any origin during deployment testing
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
