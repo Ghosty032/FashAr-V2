@@ -45,7 +45,7 @@ FashAr is a next-generation, AI-driven personal styling application that provide
 - **Databases:** 
   - Supabase (PostgreSQL) for user data & outfit history
   - Pinecone for Vector Embeddings (RAG closet search)
-- **Deployment:** Render / Railway (Planned)
+- **Deployment:** Render / Railway 
 
 ---
 
