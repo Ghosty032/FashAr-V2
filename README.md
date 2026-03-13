@@ -6,7 +6,7 @@
 
 FashAr is a next-generation, AI-driven personal styling application that provides immediate, objective feedback on your daily outfits. By uploading a simple mirror selfie, FashAr's state-of-the-art multimodal vision model analyzes your silhouette, color palette, and proportions in seconds to discover the exact missing piece needed to complete your look.
 
-[**Deployed Demo** (Coming Soon)](#)
+https://fash-ar-v2.vercel.app/
 
 ---
 
