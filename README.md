@@ -73,15 +73,12 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Create a `.env` file in the `ai-core` directory:
-```env
-NVIDIA_API_KEY=your_nvidia_api_key
-OPENWEATHER_API_KEY=your_openweathermap_api_key
-SUPABASE_URL=your_supabase_url
-SUPABASE_KEY=your_supabase_service_key
-PINECONE_API_KEY=your_pinecone_api_key
-PINECONE_INDEX=fashar-wardrobe
-```
+In local development the AI Core reads **`frontend/.env.local`** (see `app/config.py`), so
+there is no separate `ai-core/.env` to create — configure everything in the frontend file
+described in step 3 below. In production, set the same variables in your Render/Railway
+dashboard instead.
+
+> Consolidating this into a single, conventionally-named env file is a known cleanup item.
 
 Run the backend server:
 ```bash
@@ -95,16 +92,48 @@ cd frontend
 npm install
 ```
 
-Create a `.env.local` file in the `frontend` directory:
+Create a `.env.local` file in the `frontend` directory. Note that the AI Core reads this
+same file during local development, so it holds both frontend and backend keys:
+
 ```env
+# --- Auth ---
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
 CLERK_SECRET_KEY=your_clerk_secret_key
+
+# --- Database ---
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+# Server-only. Bypasses RLS, so it must never gain a NEXT_PUBLIC_ prefix.
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
-# Fast API URL
+# --- AI Core (read by the Python backend in local dev) ---
+NVIDIA_NVIM_KEY=your_nvidia_api_key
+PINECONE_KEY=your_pinecone_api_key
+OPENWEATHER_KEY=your_openweathermap_api_key
+
+# --- Gateway ---
 NEXT_PUBLIC_API_URL=http://localhost:8000
+# Shared secret proving a request to the AI Core came from the Next.js route.
+# Must be byte-identical on both sides. Generate one with:
+#   python -c "import secrets; print(secrets.token_urlsafe(32))"
+GATEWAY_SECRET=your_generated_secret
 ```
+
+Optional tuning (all have working defaults):
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `RATE_LIMIT_REQUESTS` | `20` | Analyses allowed per user per window |
+| `RATE_LIMIT_WINDOW_SECONDS` | `3600` | Length of that window |
+| `LLM_TIMEOUT_SECONDS` | `40` | Ceiling on a single NIM call |
+| `ANALYSIS_TIMEOUT_SECONDS` | `55` | Ceiling on the whole LangGraph run |
+
+### Securing the database
+
+Once the app runs, apply [`scripts/enable_rls.sql`](scripts/enable_rls.sql) in the Supabase
+SQL editor. It enables Row-Level Security with no policies, which locks the public anon key
+out of `wardrobe_history` and `product_ratings` while the service-role key used by the API
+routes continues to work. Rotate the anon key afterwards.
 
 Run the frontend development server:
 ```bash

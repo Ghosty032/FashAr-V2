@@ -10,7 +10,8 @@
       "Bash(./.venv/python.exe -c ' *)",
       "Bash(../.venv/python.exe -c ' *)",
       "Bash(./.venv/python.exe -c \"import httpx; print\\('httpx', httpx.__version__\\)\")",
-      "Bash(../.venv/python.exe \"C:/Users/Anil/AppData/Local/Temp/claude/e--StudyMaterial-VibeCoding-FashAr/ec04a250-e309-4869-92e2-f423d122d32b/scratchpad/t_gate.py\")"
+      "Bash(../.venv/python.exe \"C:/Users/Anil/AppData/Local/Temp/claude/e--StudyMaterial-VibeCoding-FashAr/ec04a250-e309-4869-92e2-f423d122d32b/scratchpad/t_gate.py\")",
+      "Bash(../.venv/python.exe \"C:/Users/Anil/AppData/Local/Temp/claude/e--StudyMaterial-VibeCoding-FashAr/ec04a250-e309-4869-92e2-f423d122d32b/scratchpad/t_failclosed.py\")"
     ]
   }
 }
