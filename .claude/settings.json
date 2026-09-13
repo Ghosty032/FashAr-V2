@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git grep *)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(cd \"E:/StudyMaterial/VibeCoding/FashAr\" && echo \"=== env files present \\(untracked\\) ===\" && ls -la frontend/.env.local ai-core/.env .env 2>/dev/null; echo \"=== keys defined in frontend/.env.local \\(names only\\) ===\" && if [ -f frontend/.env.local ]; then sed -E 's/=.*/=<redacted>/' frontend/.env.local | grep -vE '^\\\\s*#|^\\\\s*$'; else echo \"\\(no frontend/.env.local\\)\"; fi)",
+      "Bash(grep -vE '^\\\\s*#|^\\\\s*$')",
+      "Bash(python -c ' *)",
+      "Bash(./.venv/Scripts/python.exe -c ' *)",
+      "Bash(./.venv/python.exe -c ' *)",
+      "Bash(../.venv/python.exe -c ' *)",
+      "Bash(./.venv/python.exe -c \"import httpx; print\\('httpx', httpx.__version__\\)\")",
+      "Bash(../.venv/python.exe \"C:/Users/Anil/AppData/Local/Temp/claude/e--StudyMaterial-VibeCoding-FashAr/ec04a250-e309-4869-92e2-f423d122d32b/scratchpad/t_gate.py\")"
+    ]
+  }
+}

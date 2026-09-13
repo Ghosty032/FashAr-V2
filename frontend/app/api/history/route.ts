@@ -1,19 +1,15 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 /**
  * POST /api/history — Save a new analysis record
  * GET  /api/history — Fetch all records for the authenticated user
- * 
- * Uses the Supabase service-level client with explicit user_id filtering
- * since Clerk JWT → Supabase RLS can be tricky to configure correctly.
+ *
+ * Uses the service-role client, so RLS does not apply here. The Clerk check below and
+ * the explicit user_id filter on every query are the only things separating one user's
+ * history from another's — keep both on every code path.
  */
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export async function POST(request: Request) {
   try {
@@ -22,6 +18,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const supabase = getSupabaseAdmin();
     const body = await request.json();
     console.log("[History API] Saving analysis for user:", userId);
 
@@ -61,6 +58,7 @@ export async function GET() {
 
     console.log("[History API] Fetching history for user:", userId);
 
+    const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
       .from("wardrobe_history")
       .select("*")

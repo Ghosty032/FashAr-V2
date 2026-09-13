@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 /**
  * POST /api/rate — Upsert a product rating (1-5 stars)
  * Body: { product_id: string, rating: number }
+ *
+ * Service-role client. user_id comes from the verified Clerk session, never from the
+ * request body, so a caller cannot write a rating on someone else's behalf.
  */
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export async function POST(request: Request) {
   try {
@@ -28,6 +26,7 @@ export async function POST(request: Request) {
     console.log(`[Rate API] User ${userId} rated product ${product_id}: ${rating}★`);
 
     // Upsert: if this user already rated this product, update; otherwise insert
+    const supabase = getSupabaseAdmin();
     const { error } = await supabase
       .from("product_ratings")
       .upsert(

@@ -12,3 +12,18 @@ load_dotenv(frontend_env_path)
 nim_key = os.getenv("NVIDIA_NVIM_KEY") or os.getenv("NVIDIA_NIM_API_KEY")
 if nim_key:
     os.environ["NVIDIA_API_KEY"] = nim_key
+
+# ==========================================================================================
+# Timeouts
+#
+# ChatNVIDIA has no timeout parameter of its own, and because its model_config sets
+# extra="ignore", passing `timeout=...` to the constructor is silently dropped rather than
+# raising. The nodes therefore enforce timeouts with asyncio.wait_for instead. Its async
+# path runs on aiohttp, so cancellation does reach the in-flight request.
+#
+# The layers are meant to nest, tightest first:
+#   LLM_TIMEOUT (40s per call) < ANALYSIS_TIMEOUT (55s whole graph)
+#     < the gateway's fetch abort (58s) < Vercel's maxDuration (60s)
+# ==========================================================================================
+LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "40"))
+ANALYSIS_TIMEOUT_SECONDS = float(os.getenv("ANALYSIS_TIMEOUT_SECONDS", "55"))

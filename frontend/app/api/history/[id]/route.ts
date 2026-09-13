@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 /**
  * DELETE /api/history/[id] — Delete a specific history record
+ *
+ * Service-role client, so the .eq("user_id", userId) below is load-bearing: without it
+ * this would delete any row by id regardless of owner.
  */
 export async function DELETE(
   request: Request,
@@ -23,6 +21,7 @@ export async function DELETE(
     const { id } = await params;
 
     // Only delete if the record belongs to this user
+    const supabase = getSupabaseAdmin();
     const { error } = await supabase
       .from("wardrobe_history")
       .delete()

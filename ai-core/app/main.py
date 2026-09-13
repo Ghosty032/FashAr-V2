@@ -1,10 +1,12 @@
 import json
-from fastapi import FastAPI, UploadFile, Form, File, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+import asyncio
+from fastapi import FastAPI, UploadFile, Form, File, HTTPException, Depends
 from typing import Optional
 import base64
 
+from app.config import ANALYSIS_TIMEOUT_SECONDS
 from app.graph import app as fashr_graph
+from app.deps import enforce_rate_limit
 from app.schemas.models import FinalAnalysis, DetectedItem, ColorPalette, ScoreBreakdown, RecommendedProduct, WeatherInfo
 from app.services.weather_service import get_weather
 
@@ -15,20 +17,16 @@ from app.services.weather_service import get_weather
 
 app = FastAPI(title="FASHR AI Core", version="0.1.0")
 
-# Allow requests from any origin during deployment testing
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# No CORS middleware on purpose. Nothing in a browser talks to this service directly —
+# the Next.js route at /api/analyze proxies every call server-side, and server-to-server
+# requests are not subject to CORS. Adding it back would only weaken the gateway check.
 
 @app.get("/")
 def health_check():
+    """Unauthenticated so Render's health check can reach it."""
     return {"status": "AI Core running with NVIDIA NIM Llama 3.2 Vision"}
 
-@app.post("/analyze", response_model=FinalAnalysis)
+@app.post("/analyze", response_model=FinalAnalysis, dependencies=[Depends(enforce_rate_limit)])
 async def analyze_outfit(
     image: Optional[UploadFile] = File(None),
     text_description: Optional[str] = Form(None),
@@ -91,7 +89,15 @@ async def analyze_outfit(
     
     print("Starting Fashr LangGraph Workflow...")
     try:
-        result = await fashr_graph.ainvoke(inputs) 
+        result = await asyncio.wait_for(
+            fashr_graph.ainvoke(inputs), timeout=ANALYSIS_TIMEOUT_SECONDS
+        )
+    except asyncio.TimeoutError:
+        print(f"Graph execution timed out after {ANALYSIS_TIMEOUT_SECONDS}s")
+        raise HTTPException(
+            status_code=504,
+            detail="The AI pipeline took too long to respond. Please try again.",
+        )
     except Exception as e:
         print(f"Graph execution failed: {e}")
         raise HTTPException(status_code=500, detail="The AI execution pipeline failed.")

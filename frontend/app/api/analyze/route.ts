@@ -20,11 +20,33 @@ export async function POST(request: Request) {
     // 4. Forward the exact FormData directly to the Python FastAPI instance
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001";
     const pythonEndpoint = `${baseUrl.replace(/\/$/, '')}/analyze`;
-    
+
+    const gatewaySecret = process.env.GATEWAY_SECRET;
+    if (!gatewaySecret) {
+      // Fail closed rather than sending an unauthenticated request the AI Core will reject.
+      console.error("[NextJS Gateway] GATEWAY_SECRET is not set.");
+      return NextResponse.json(
+        { error: "Server misconfigured", details: "GATEWAY_SECRET is not set." },
+        { status: 500 }
+      );
+    }
+
     console.log("[NextJS Gateway] Forwarding request to AI Core...");
     const aiResponse = await fetch(pythonEndpoint, {
       method: "POST",
       body: formData, // passing raw form data
+      headers: {
+        // Proves to the AI Core that this call came from us and not from someone who
+        // found the Render hostname. Deliberately no Content-Type here — fetch has to
+        // set it itself so the multipart boundary matches the body.
+        "x-gateway-secret": gatewaySecret,
+        // The AI Core rate-limits per user. This is only trustworthy because the secret
+        // above proves the caller; it comes from the verified Clerk session, not the client.
+        "x-user-id": userId,
+      },
+      // Sits just inside maxDuration (60s) and just outside the AI Core's own 55s graph
+      // deadline, so a hung upstream surfaces as an error instead of a platform timeout.
+      signal: AbortSignal.timeout(58_000),
     });
 
     if (!aiResponse.ok) {
@@ -33,9 +55,15 @@ export async function POST(request: Request) {
         errorText = JSON.parse(errorText).detail || errorText;
       } catch (e) {}
       console.error("[NextJS Gateway] AI Core Error:", errorText);
+
+      // Pass Retry-After through on a 429 so the client can tell the user when to retry.
+      const headers = new Headers();
+      const retryAfter = aiResponse.headers.get("retry-after");
+      if (retryAfter) headers.set("Retry-After", retryAfter);
+
       return NextResponse.json(
         { error: "AI Engine Error", details: errorText },
-        { status: aiResponse.status }
+        { status: aiResponse.status, headers }
       );
     }
 
@@ -44,6 +72,15 @@ export async function POST(request: Request) {
     return NextResponse.json(aiData);
 
   } catch (error: any) {
+    // AbortSignal.timeout rejects with a TimeoutError DOMException.
+    if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+      console.error("[NextJS Gateway] AI Core timed out.");
+      return NextResponse.json(
+        { error: "AI Engine Timeout", details: "The AI Core did not respond in time. Please try again." },
+        { status: 504 }
+      );
+    }
+
     console.error("[NextJS Gateway] Internal Error:", error);
     return NextResponse.json(
       { error: "Internal Gateway Error", details: error.message },

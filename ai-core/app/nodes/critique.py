@@ -1,3 +1,4 @@
+import asyncio
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers import JsonOutputParser
@@ -5,6 +6,7 @@ from app.schemas.state import AgentState
 from app.schemas.models import CritiqueResult
 from app.prompts.prompts import CRITIC_SYSTEM_PROMPT
 import app.config  # ensures API key is loaded
+from app.config import LLM_TIMEOUT_SECONDS
 
 async def critique_outfit(state: AgentState) -> dict:
     """
@@ -14,8 +16,8 @@ async def critique_outfit(state: AgentState) -> dict:
     print("--- [NODE] Critiquing Outfit ---")
     
     try:
-        # Use Llama 3.1 405B for deep reasoning
-        llm = ChatNVIDIA(model="meta/llama-3.1-405b-instruct", temperature=0.6)
+     
+        llm = ChatNVIDIA(model="meta/llama-3.1-405b-instruct", temperature=0.66)
         parser = JsonOutputParser(pydantic_object=CritiqueResult)
         
         scan = state.get("scan_result")
@@ -44,14 +46,21 @@ async def critique_outfit(state: AgentState) -> dict:
         ]
         
         print("Calling NVIDIA NIM Critique Model...")
-        result_dict = await (llm | parser).ainvoke(messages)
-        
+        result_dict = await asyncio.wait_for(
+            (llm | parser).ainvoke(messages), timeout=LLM_TIMEOUT_SECONDS
+        )
+
         # Parse into Pydantic model
         result = CritiqueResult(**result_dict)
         print("Critique successful!")
-        
+
         return {"critique_result": result}
-        
+
+    except asyncio.TimeoutError:
+        # Let this propagate so main.py can return a 504 that says what actually happened,
+        # rather than the generic "AI returned empty or invalid results".
+        print(f"Error in critique_outfit: timed out after {LLM_TIMEOUT_SECONDS}s")
+        raise
     except Exception as e:
         print(f"Error in critique_outfit: {e}")
         # Try to return fallback, though error propagation is sometimes better for debugging

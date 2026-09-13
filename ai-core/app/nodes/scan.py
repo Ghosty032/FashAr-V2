@@ -1,5 +1,6 @@
 import re
 import json
+import asyncio
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers import JsonOutputParser
@@ -7,6 +8,7 @@ from app.schemas.state import AgentState
 from app.schemas.models import ScanResult
 from app.prompts.prompts import SCANNER_SYSTEM_PROMPT
 import app.config  # ensures API key is loaded
+from app.config import LLM_TIMEOUT_SECONDS
 
 
 def _extract_json_from_text(raw_text: str) -> dict | None:
@@ -69,11 +71,18 @@ async def scan_outfit(state: AgentState) -> dict:
         
         # Try the standard parser first
         try:
-            result_dict = await (llm | parser).ainvoke(messages)
+            result_dict = await asyncio.wait_for(
+                (llm | parser).ainvoke(messages), timeout=LLM_TIMEOUT_SECONDS
+            )
+        except asyncio.TimeoutError:
+            # A hung call must not silently become a retry — that would double the budget.
+            raise
         except Exception as parse_err:
             print(f"Parser failed, attempting manual JSON extraction: {parse_err}")
             # Fallback: get raw text and extract JSON manually
-            raw_response = await llm.ainvoke(messages)
+            raw_response = await asyncio.wait_for(
+                llm.ainvoke(messages), timeout=LLM_TIMEOUT_SECONDS
+            )
             raw_text = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
             result_dict = _extract_json_from_text(raw_text)
             if not result_dict:
@@ -89,6 +98,12 @@ async def scan_outfit(state: AgentState) -> dict:
         print("Scan successful!")
         return {"scan_result": result}
         
+    except asyncio.TimeoutError:
+        # Deliberately not swallowed. An empty scan here would have the critic grade an
+        # outfit containing no garments, handing the user a confident-looking score for a
+        # call that never actually completed.
+        print(f"Error in scan_outfit: timed out after {LLM_TIMEOUT_SECONDS}s")
+        raise
     except Exception as e:
         print(f"Error in scan_outfit: {e}")
         # Fallback empty result so the graph doesn't crash
