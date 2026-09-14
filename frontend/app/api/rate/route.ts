@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { errorMessage } from "@/lib/errors";
 
 /**
  * POST /api/rate — Upsert a product rating (1-5 stars)
@@ -40,8 +41,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true, product_id, rating });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[Rate API] Error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(err) }, { status: 500 });
   }
 }

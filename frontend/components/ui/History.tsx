@@ -3,17 +3,25 @@
 import { useState, useEffect } from "react";
 import { Clock, Trash2, ChevronDown, ChevronUp, RefreshCw, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/errors";
+import type {
+  ColorPalette,
+  DetectedItem,
+  RecommendedProduct,
+  ScoreBreakdown,
+  WeatherInfo,
+} from "@/lib/types/ai";
 
 interface HistoryRecord {
   id: string;
   style_score: number;
-  score_breakdown: any;
+  score_breakdown: ScoreBreakdown | null;
   narrative_critique: string;
   gap_type: string;
-  detected_items: any[];
-  color_palette: any[];
-  recommended_products: any[];
-  weather: any;
+  detected_items: DetectedItem[] | null;
+  color_palette: ColorPalette[] | null;
+  recommended_products: RecommendedProduct[] | null;
+  weather: WeatherInfo | null;
   occasion: string | null;
   persona: string | null;
   created_at: string;
@@ -32,8 +40,8 @@ export default function History({ onBack }: { onBack: () => void }) {
       if (!res.ok) throw new Error("Failed to fetch history");
       const data = await res.json();
       setRecords(data);
-    } catch (err: any) {
-      toast.error(err.message || "Could not load history");
+    } catch (err: unknown) {
+      toast.error(errorMessage(err, "Could not load history"));
     } finally {
       setLoading(false);
     }
@@ -50,8 +58,8 @@ export default function History({ onBack }: { onBack: () => void }) {
       if (!res.ok) throw new Error("Failed to delete");
       setRecords((prev) => prev.filter((r) => r.id !== id));
       toast.success("Record deleted");
-    } catch (err: any) {
-      toast.error(err.message || "Delete failed");
+    } catch (err: unknown) {
+      toast.error(errorMessage(err, "Delete failed"));
     } finally {
       setDeletingId(null);
     }
@@ -198,7 +206,7 @@ export default function History({ onBack }: { onBack: () => void }) {
               <div>
                 <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Detected Items</h4>
                 <div className="flex flex-wrap gap-2">
-                  {(record.detected_items || []).map((item: any, idx: number) => (
+                  {(record.detected_items || []).map((item, idx) => (
                     <span key={idx} className="text-xs bg-white dark:bg-gray-900 px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-800 capitalize dark:text-gray-300">
                       {item.color} {item.garment_type}
                     </span>
@@ -210,7 +218,7 @@ export default function History({ onBack }: { onBack: () => void }) {
               <div>
                 <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Colors</h4>
                 <div className="flex gap-2">
-                  {(record.color_palette || []).map((c: any, idx: number) => (
+                  {(record.color_palette || []).map((c, idx) => (
                     <div key={idx} className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-700 shadow-inner" style={{ backgroundColor: c.hex_code }} title={c.name} />
                   ))}
                 </div>

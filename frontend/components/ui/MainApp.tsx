@@ -6,7 +6,6 @@ import Results from "./Results";
 import History from "./History";
 import { FinalAnalysis } from "@/lib/types/ai";
 import { Clock } from "lucide-react";
-import { toast } from "sonner";
 
 type View = "scanner" | "results" | "history";
 

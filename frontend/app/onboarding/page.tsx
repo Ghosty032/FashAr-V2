@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+import { errorMessage } from "@/lib/errors";
 
 export default function Onboarding() {
   const { user } = useUser();
@@ -78,9 +79,9 @@ export default function Onboarding() {
       }
 
       router.push("/");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || "Failed to save profile. Please try again.");
+      setError(errorMessage(err, "Failed to save profile. Please try again."));
     } finally {
       setIsSubmitting(false);
     }

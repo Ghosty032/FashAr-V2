@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { errorMessage } from "@/lib/errors";
 
 /**
  * POST /api/history — Save a new analysis record
@@ -43,9 +44,9 @@ export async function POST(request: Request) {
 
     console.log("[History API] Saved successfully");
     return NextResponse.json({ success: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[History API] POST error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(err) }, { status: 500 });
   }
 }
 
@@ -72,9 +73,9 @@ export async function GET() {
 
     console.log(`[History API] Found ${data?.length || 0} records`);
     return NextResponse.json(data);
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[History API] GET error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(err) }, { status: 500 });
   }
 }
 

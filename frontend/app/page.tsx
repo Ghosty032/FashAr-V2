@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { UserButton, SignInButton, useUser } from "@clerk/nextjs";
 import { Sparkles, Camera, Search, ShoppingBag, ArrowRight } from "lucide-react";
 import MainApp from "@/components/ui/MainApp";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export default function Home() {
-  const { isLoaded, isSignedIn, user } = useUser();
+  const { isLoaded, isSignedIn } = useUser();
   const [isAppOpen, setIsAppOpen] = useState(false);
 
   // Still rendering loading state to prevent flash, but keep it minimal
@@ -17,7 +18,7 @@ export default function Home() {
     <div className="min-h-screen flex flex-col items-center selection:bg-indigo-100 selection:text-indigo-900 dark:selection:bg-indigo-900 dark:selection:text-indigo-100 bg-gray-50 dark:bg-black overflow-hidden transition-colors duration-300">
       {/* Header */}
       <div className="w-full max-w-5xl flex items-center justify-between px-6 py-6 z-10 bg-white/70 dark:bg-transparent backdrop-blur-md dark:backdrop-blur-none border border-white/40 dark:border-transparent sticky top-0 rounded-b-3xl transition-colors">
-        <a
+        <Link
           href="/"
           onClick={(e) => {
             if (isAppOpen) {
@@ -32,7 +33,7 @@ export default function Home() {
             <Sparkles className="w-5 h-5" />
           </div>
           <span className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">FASHR</span>
-        </a>
+        </Link>
 
         <div className="flex items-center gap-4">
           <ThemeToggle />

@@ -5,6 +5,7 @@ import ImageUploadZone from "./ImageUploadZone";
 import { ScanLine, Type, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { FinalAnalysis } from "@/lib/types/ai";
+import { errorMessage } from "@/lib/errors";
 
 // PRD §5.1.3 — Two-tier occasion system
 const OCCASIONS_TIER1 = ["Casual", "Smart Casual", "Business", "Formal", "Event", "Active"] as const;
@@ -118,8 +119,8 @@ export default function Scanner({ onAnalysisComplete }: ScannerProps) {
         persona,
       });
       
-    } catch (error: any) {
-      toast.error(error.message || "Analysis failed. Please try again.");
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "Analysis failed. Please try again."));
     } finally {
       setIsAnalyzing(false);
     }

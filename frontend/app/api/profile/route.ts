@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { errorMessage } from "@/lib/errors";
 
 /**
  * GET  /api/profile — the signed-in user's style profile, or null if they have none
@@ -45,9 +46,9 @@ export async function GET() {
     }
 
     return NextResponse.json({ profile: data ?? null });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[Profile API] GET error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(err) }, { status: 500 });
   }
 }
 
@@ -93,8 +94,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[Profile API] POST error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(err) }, { status: 500 });
   }
 }

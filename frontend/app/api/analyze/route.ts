@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { errorMessage, isTimeoutError } from "@/lib/errors";
 
 export const maxDuration = 60; // Allow 60s for AI to respond if on Vercel Pro
 
@@ -77,7 +78,9 @@ export async function POST(request: Request) {
       let errorText = await aiResponse.text();
       try {
         errorText = JSON.parse(errorText).detail || errorText;
-      } catch (e) {}
+      } catch {
+        // Not JSON — keep the raw body, it is still the most useful thing we have.
+      }
       console.error("[NextJS Gateway] AI Core Error:", errorText);
 
       // Pass Retry-After through on a 429 so the client can tell the user when to retry.
@@ -95,9 +98,9 @@ export async function POST(request: Request) {
     const aiData = await aiResponse.json();
     return NextResponse.json(aiData);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     // AbortSignal.timeout rejects with a TimeoutError DOMException.
-    if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+    if (isTimeoutError(error)) {
       console.error("[NextJS Gateway] AI Core timed out.");
       return NextResponse.json(
         { error: "AI Engine Timeout", details: "The AI Core did not respond in time. Please try again." },
@@ -107,7 +110,7 @@ export async function POST(request: Request) {
 
     console.error("[NextJS Gateway] Internal Error:", error);
     return NextResponse.json(
-      { error: "Internal Gateway Error", details: error.message },
+      { error: "Internal Gateway Error", details: errorMessage(error) },
       { status: 500 }
     );
   }

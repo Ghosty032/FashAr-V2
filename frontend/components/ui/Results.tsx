@@ -71,10 +71,10 @@ export default function Results({ data, onReset }: { data: FinalAnalysis, onRese
     const end = style_score;
     if (start === end) return;
     
-    let totalDuration = 1500;
-    let incrementTime = (totalDuration / end);
-    
-    let timer = setInterval(() => {
+    const totalDuration = 1500;
+    const incrementTime = (totalDuration / end);
+
+    const timer = setInterval(() => {
       start += 1;
       setDisplayScore(start);
       if (start === end) clearInterval(timer);
