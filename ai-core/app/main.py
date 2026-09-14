@@ -1,10 +1,11 @@
 import json
 import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, Form, File, HTTPException, Depends
 from typing import Optional
 import base64
 
-from app.config import ANALYSIS_TIMEOUT_SECONDS
+from app.config import ANALYSIS_TIMEOUT_SECONDS, log_config_status, missing_settings
 from app.graph import app as fashr_graph
 from app.deps import enforce_rate_limit
 from app.schemas.models import FinalAnalysis, DetectedItem, ColorPalette, ScoreBreakdown, RecommendedProduct, WeatherInfo
@@ -15,16 +16,35 @@ from app.services.weather_service import get_weather
 # Exposes the /analyze endpoint to the NextJS frontend
 # =========================================================================================
 
-app = FastAPI(title="FASHR AI Core", version="0.1.0")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Report configuration once at boot, so a missing key is visible in the deploy log."""
+    log_config_status()
+    yield
+
+
+app = FastAPI(title="FASHR AI Core", version="0.1.0", lifespan=lifespan)
 
 # No CORS middleware on purpose. Nothing in a browser talks to this service directly —
 # the Next.js route at /api/analyze proxies every call server-side, and server-to-server
 # requests are not subject to CORS. Adding it back would only weaken the gateway check.
 
+
 @app.get("/")
 def health_check():
-    """Unauthenticated so Render's health check can reach it."""
-    return {"status": "AI Core running with NVIDIA NIM Llama 3.2 Vision"}
+    """
+    Unauthenticated so Render's health check can reach it.
+
+    Reports which required settings are absent, but deliberately never their values — this
+    endpoint is public. It stays 200 even when misconfigured, so the platform does not
+    restart-loop a container whose only problem is a missing key.
+    """
+    missing = missing_settings()
+    return {
+        "status": "degraded" if missing else "ok",
+        "service": "FASHR AI Core",
+        "missing_settings": missing,
+    }
 
 @app.post("/analyze", response_model=FinalAnalysis, dependencies=[Depends(enforce_rate_limit)])
 async def analyze_outfit(

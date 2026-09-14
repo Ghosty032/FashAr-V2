@@ -10,21 +10,16 @@ values tiled 128 times, giving retrieval no semantic signal whatsoever. If you e
 hand-rolled `_simple_embedding` reappear, that is the bug.
 """
 
-import os
 import threading
 
 from pinecone import Pinecone
 
-# Single source of truth for env loading. This module previously called load_dotenv itself
-# with three os.path.dirname hops, which from app/services/ resolves to
+# All configuration comes from app.config. This module used to call load_dotenv itself with
+# three os.path.dirname hops, which from app/services/ resolves to
 # `ai-core/frontend/.env.local` — a path that does not exist. It appeared to work only
 # because main.py imports app.config first and that populates os.environ as a side effect;
-# importing this module on its own left PINECONE_KEY as None.
-import app.config  # noqa: F401
-
-PINECONE_KEY = os.getenv("PINECONE_KEY")
-INDEX_NAME = os.getenv("PINECONE_INDEX", "fashr-products-v2")
-NAMESPACE = "__default__"
+# imported on its own, PINECONE_KEY was None.
+from app.config import PINECONE_KEY, PINECONE_INDEX as INDEX_NAME, PINECONE_NAMESPACE as NAMESPACE
 
 # How many candidates to pull before reranking. Deliberately wider than the 3 we return, so
 # `retrieval_weight` has something to actually reorder.

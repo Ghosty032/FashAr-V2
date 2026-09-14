@@ -18,20 +18,18 @@ may land on a fresh instance, where the same counter would reset constantly.
 """
 
 import hmac
-import os
 import time
 from collections import defaultdict, deque
 
 from fastapi import Depends, Header, HTTPException
 
-import app.config  # noqa: F401  — ensures the .env file is loaded before we read it
-
-GATEWAY_SECRET = os.getenv("GATEWAY_SECRET")
-
 # Defaults: 20 analyses per user per hour. One analysis is two LLM calls, one of them
-# against a 405B model, so this is about cost control rather than traffic shaping.
-RATE_LIMIT_REQUESTS = int(os.getenv("RATE_LIMIT_REQUESTS", "20"))
-RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "3600"))
+# against a very large model, so this is about cost control rather than traffic shaping.
+from app.config import (
+    GATEWAY_SECRET,
+    RATE_LIMIT_REQUESTS,
+    RATE_LIMIT_WINDOW_SECONDS,
+)
 
 # user id -> timestamps of their recent requests, oldest first
 _request_log: dict[str, deque[float]] = defaultdict(deque)

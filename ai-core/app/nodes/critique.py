@@ -5,8 +5,7 @@ from langchain_core.output_parsers import JsonOutputParser
 from app.schemas.state import AgentState
 from app.schemas.models import CritiqueResult
 from app.prompts.prompts import CRITIC_SYSTEM_PROMPT
-import app.config  # ensures API key is loaded
-from app.config import LLM_TIMEOUT_SECONDS
+from app.config import LLM_TIMEOUT_SECONDS, CRITIC_MODEL
 
 async def critique_outfit(state: AgentState) -> dict:
     """
@@ -17,7 +16,7 @@ async def critique_outfit(state: AgentState) -> dict:
     
     try:
      
-        llm = ChatNVIDIA(model="meta/llama-3.1-405b-instruct", temperature=0.66)
+        llm = ChatNVIDIA(model=CRITIC_MODEL, temperature=0.66)
         parser = JsonOutputParser(pydantic_object=CritiqueResult)
         
         scan = state.get("scan_result")

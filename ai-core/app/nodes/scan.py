@@ -7,8 +7,7 @@ from langchain_core.output_parsers import JsonOutputParser
 from app.schemas.state import AgentState
 from app.schemas.models import ScanResult
 from app.prompts.prompts import SCANNER_SYSTEM_PROMPT
-import app.config  # ensures API key is loaded
-from app.config import LLM_TIMEOUT_SECONDS
+from app.config import LLM_TIMEOUT_SECONDS, VISION_MODEL, TEXT_SCAN_MODEL
 
 
 def _extract_json_from_text(raw_text: str) -> dict | None:
@@ -35,10 +34,10 @@ async def scan_outfit(state: AgentState) -> dict:
     print("--- [NODE] Scanning Outfit ---")
     
     if state.get("image_base64"):
-        model_name = "meta/llama-3.2-90b-vision-instruct"
+        model_name = VISION_MODEL
     else:
-        # Fast Parser Agent (70B)
-        model_name = "meta/llama-3.1-70b-instruct"
+        # Text-only path does not need a vision model.
+        model_name = TEXT_SCAN_MODEL
         
     try:
         llm = ChatNVIDIA(model=model_name, temperature=0.1)
