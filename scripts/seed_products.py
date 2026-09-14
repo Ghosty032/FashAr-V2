@@ -1,29 +1,39 @@
 """
 FASHR V2 — Product Seed Script
-Embeds ~50 curated fashion products and upserts them into a Pinecone index.
+
+Upserts the curated product catalog into a Pinecone index that uses **integrated
+inference**: Pinecone hosts the embedding model and embeds `chunk_text` server-side on
+write (input_type=passage) and the search string on read (input_type=query). Nothing here
+computes a vector, and no NVIDIA key is involved.
+
+This replaces an earlier MD5-based pseudo-embedding. That function expanded a 16-byte
+digest into 1024 floats, which produced a vector containing only 8 distinct values tiled
+128 times — a one-character change to the input dropped cosine similarity to 0.19. It
+carried no semantic signal at all, so retrieval ranking was effectively noise.
+
+Safe to re-run: ids are deterministic, so an upsert overwrites in place.
 
 Usage:
-  conda run -p .\.venv python scripts/seed_products.py
+  python scripts/seed_products.py
 """
 
 import os
 import sys
 import time
-import hashlib
 
 # Add project root for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "ai-core"))
 
 from dotenv import load_dotenv
-from pinecone import Pinecone, ServerlessSpec
+from pinecone import Pinecone
 
 # Load env
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", "frontend", ".env.local"))
 
 PINECONE_KEY = os.getenv("PINECONE_KEY")
-NVIDIA_KEY = os.getenv("NVIDIA_NVIM_KEY") or os.getenv("NVIDIA_NIM_API_KEY")
-INDEX_NAME = "fashr-products"
-EMBEDDING_DIM = 1024  # NV-Embed-v2 dimension
+INDEX_NAME = os.getenv("PINECONE_INDEX", "fashr-products-v2")
+EMBED_MODEL = "llama-text-embed-v2"  # 1024 dims, 2048-token window
+NAMESPACE = "__default__"
 
 # =====================================================================
 # PRODUCT CATALOG — 50 curated items across all gap types
@@ -91,28 +101,21 @@ PRODUCTS = [
 
 
 def generate_embedding_text(product: dict) -> str:
-    """Create a rich text string from product metadata for embedding."""
-    return f"{product['title']} by {product['brand']}. {product['description']} Gap types: {', '.join(product['gap_type'])}. Colors: {', '.join(product['color_family'])}."
-
-
-def simple_embedding(text: str, dim: int = EMBEDDING_DIM) -> list[float]:
     """
-    Generate a deterministic pseudo-embedding from text using MD5 hashing.
-    This is a PLACEHOLDER for the real NVIDIA NeMo Embeddings in production.
-    We use this to avoid making API calls during seeding.
+    The text Pinecone will embed for this product.
+
+    Deliberately written as product prose, because the search string it gets compared
+    against is also prose (the critic's `gap_query`, e.g. "structured navy wool blazer with
+    natural shoulder"). Matching registers matters more than cramming in keywords.
+
+    `gap_type` is intentionally excluded: it is applied as a hard metadata filter, so
+    repeating it here would only add noise to the vector.
     """
-    import struct
-    h = hashlib.md5(text.encode()).digest()
-    # Expand the 16-byte hash to fill the dimension
-    vec = []
-    for i in range(dim):
-        byte_pair = h[(i * 2) % len(h)] ^ h[(i * 2 + 1) % len(h)]
-        # Normalize to [-1, 1]
-        val = (byte_pair / 127.5) - 1.0
-        vec.append(val)
-    # Normalize the vector
-    norm = sum(v ** 2 for v in vec) ** 0.5
-    return [v / norm for v in vec]
+    return (
+        f"{product['title']} by {product['brand']}. "
+        f"{product['description']} "
+        f"Colours: {', '.join(product['color_family'])}."
+    )
 
 
 def main():
@@ -120,65 +123,61 @@ def main():
         print("ERROR: PINECONE_KEY not found in frontend/.env.local")
         return
 
-    print(f"Connecting to Pinecone...")
+    print("Connecting to Pinecone...")
     pc = Pinecone(api_key=PINECONE_KEY)
 
-    # Check if index exists, create if not
     existing_indexes = [idx.name for idx in pc.list_indexes()]
     if INDEX_NAME not in existing_indexes:
-        print(f"Creating index '{INDEX_NAME}' (dim={EMBEDDING_DIM})...")
-        pc.create_index(
+        # The embedding model has to be attached at creation time — it cannot be added to
+        # an existing index, which is why this is a new index rather than a re-seed of the
+        # old vector-based one.
+        print(f"Creating index '{INDEX_NAME}' with integrated model '{EMBED_MODEL}'...")
+        pc.create_index_for_model(
             name=INDEX_NAME,
-            dimension=EMBEDDING_DIM,
-            metric="cosine",
-            spec=ServerlessSpec(cloud="aws", region="us-east-1")
+            cloud="aws",
+            region="us-east-1",
+            embed={"model": EMBED_MODEL, "field_map": {"text": "chunk_text"}},
         )
-        # Wait for index to be ready
         print("Waiting for index to initialize...")
-        time.sleep(10)
+        while not pc.describe_index(INDEX_NAME).status.get("ready"):
+            time.sleep(2)
     else:
         print(f"Index '{INDEX_NAME}' already exists.")
 
     index = pc.Index(INDEX_NAME)
 
-    # Embed and upsert products
-    vectors = []
+    records = []
     for i, product in enumerate(PRODUCTS):
-        embed_text = generate_embedding_text(product)
-        embedding = simple_embedding(embed_text)
-
         product_id = f"prod_{i:03d}_{product['title'].lower().replace(' ', '_')[:30]}"
-
-        vectors.append({
-            "id": product_id,
-            "values": embedding,
-            "metadata": {
-                "title": product["title"],
-                "brand": product["brand"],
-                "description": product["description"],
-                "gap_type": product["gap_type"],
-                "gender_filter": product["gender_filter"],
-                "body_type": product["body_type"],
-                "size_range": product["size_range"],
-                "color_family": product["color_family"],
-                "buy_link": product["buy_link"],
-                "rating_score": product["rating_score"],
-                "rating_count": product["rating_count"],
-                "retrieval_weight": product["retrieval_weight"],
-            }
+        records.append({
+            "_id": product_id,
+            # Pinecone embeds this field server-side; everything else is filterable metadata.
+            "chunk_text": generate_embedding_text(product),
+            "title": product["title"],
+            "brand": product["brand"],
+            "description": product["description"],
+            "gap_type": product["gap_type"],
+            "gender_filter": product["gender_filter"],
+            "body_type": product["body_type"],
+            "size_range": product["size_range"],
+            "color_family": product["color_family"],
+            "buy_link": product["buy_link"],
+            "rating_score": product["rating_score"],
+            "rating_count": product["rating_count"],
+            "retrieval_weight": product["retrieval_weight"],
         })
 
-    # Upsert in batches of 20
+    # Upsert in batches. Pinecone embeds each batch as it arrives, so keep them modest.
     batch_size = 20
-    for i in range(0, len(vectors), batch_size):
-        batch = vectors[i:i + batch_size]
-        index.upsert(vectors=batch)
+    for i in range(0, len(records), batch_size):
+        batch = records[i:i + batch_size]
+        index.upsert_records(NAMESPACE, batch)
         print(f"Upserted batch {i // batch_size + 1} ({len(batch)} products)")
 
-    # Verify
-    time.sleep(2)
+    # Indexing is asynchronous; give it a moment before reading stats back.
+    time.sleep(5)
     stats = index.describe_index_stats()
-    print(f"\n✅ Done! Index '{INDEX_NAME}' now has {stats.total_vector_count} vectors.")
+    print(f"\nDone. Index '{INDEX_NAME}' now has {stats.total_vector_count} vectors.")
 
 
 if __name__ == "__main__":

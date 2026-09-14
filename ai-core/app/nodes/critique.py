@@ -62,6 +62,8 @@ async def critique_outfit(state: AgentState) -> dict:
         print(f"Error in critique_outfit: timed out after {LLM_TIMEOUT_SECONDS}s")
         raise
     except Exception as e:
-        print(f"Error in critique_outfit: {e}")
-        # Try to return fallback, though error propagation is sometimes better for debugging
-        return {}
+        # The critique is not optional — without it there is no score and no gap, so there
+        # is nothing to show the user. Record why rather than returning a bare {} and
+        # letting main.py guess.
+        print(f"Error in critique_outfit: {type(e).__name__}: {e}")
+        return {"error": f"Critique step failed ({type(e).__name__}): {e}"}

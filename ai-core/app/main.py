@@ -35,6 +35,8 @@ async def analyze_outfit(
     style_persona: str = Form(...),
     gender: str = Form("unisex"),
     body_type: str = Form("[]"),
+    # JSON-encoded arrays, attached by the Next.js gateway from the user's saved profile.
+    sizes: str = Form("[]"),
     latitude: Optional[float] = Form(None),
     longitude: Optional[float] = Form(None),
 ):
@@ -64,10 +66,19 @@ async def analyze_outfit(
     if occasion_tier_2:
         full_occasion += f" - {occasion_tier_2}"
         
-    try:
-        parsed_body_type = json.loads(body_type)
-    except:
-        parsed_body_type = []
+    def _parse_str_list(raw: str, field: str) -> list[str]:
+        """Tolerate a malformed profile field rather than failing the whole analysis."""
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            print(f"Could not parse {field}={raw!r}; treating as empty.")
+            return []
+        if not isinstance(parsed, list):
+            return []
+        return [v for v in parsed if isinstance(v, str)]
+
+    parsed_body_type = _parse_str_list(body_type, "body_type")
+    parsed_sizes = _parse_str_list(sizes, "sizes")
 
     # 4. Phase 5 — Fetch weather data if coordinates provided
     weather_context = {}
@@ -82,6 +93,7 @@ async def analyze_outfit(
         "style_persona": style_persona,
         "gender": gender,
         "body_type": parsed_body_type,
+        "sizes": parsed_sizes,
         "latitude": latitude,
         "longitude": longitude,
         "weather_context": weather_context,
@@ -104,9 +116,20 @@ async def analyze_outfit(
         
     critique = result.get("critique_result")
     scan = result.get("scan_result")
-    
+    pipeline_error = result.get("error")
+
     if not critique or not scan:
-        raise HTTPException(status_code=500, detail="AI returned empty or invalid results. Check NIM API limits or endpoints.")
+        # Prefer the reason a node actually recorded over a guess about NIM limits.
+        detail = pipeline_error or (
+            "AI returned empty or invalid results. Check NIM API limits or endpoints."
+        )
+        print(f"Analysis incomplete: {detail}")
+        raise HTTPException(status_code=502, detail=detail)
+
+    # The scan can fail softly (empty result) while the critique still succeeds. Say so
+    # rather than presenting a score derived from no detected garments as if it were solid.
+    if pipeline_error:
+        print(f"Analysis completed with a degraded step: {pipeline_error}")
 
     # 6. Build the recommended products list from RAG results
     raw_products = result.get("recommended_products", [])

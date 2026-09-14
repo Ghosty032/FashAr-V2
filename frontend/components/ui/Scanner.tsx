@@ -12,8 +12,13 @@ const STYLE_PERSONAS = ["Minimalist", "Streetwear", "Old Money", "Business Core"
 
 type InputMode = "image" | "text";
 
+export interface AnalysisContext {
+  occasion: string;
+  persona: string;
+}
+
 interface ScannerProps {
-  onAnalysisComplete: (data: FinalAnalysis) => void;
+  onAnalysisComplete: (data: FinalAnalysis, context: AnalysisContext) => void;
 }
 
 export default function Scanner({ onAnalysisComplete }: ScannerProps) {
@@ -102,7 +107,16 @@ export default function Scanner({ onAnalysisComplete }: ScannerProps) {
       const data: FinalAnalysis = await response.json();
       toast.success("Analysis complete!");
       handleClearImage(); // clean up memory
-      onAnalysisComplete(data);
+
+      // The occasion and persona are only known here, and the history record wants them.
+      // They were previously read off the analysis response, which never carried them, so
+      // both columns were always null.
+      onAnalysisComplete(data, {
+        occasion: occasionTier2.trim()
+          ? `${occasionTier1} - ${occasionTier2.trim()}`
+          : occasionTier1,
+        persona,
+      });
       
     } catch (error: any) {
       toast.error(error.message || "Analysis failed. Please try again.");

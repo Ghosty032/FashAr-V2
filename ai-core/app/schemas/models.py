@@ -32,7 +32,17 @@ class CritiqueResult(BaseModel):
     score_breakdown: ScoreBreakdown
     narrative_critique: str = Field(description="A 2-4 sentence constructive, sophisticated fashion critique written in an objective, elevated tone.")
     gap_type: Literal["structure", "footwear", "texture", "accessory", "color", "none"] = Field(description="The primary missing element holding the outfit back. Output 'none' if perfect.")
-    
+    gap_query: str = Field(
+        default="",
+        description=(
+            "A short description of the specific missing piece, phrased like a product "
+            "listing rather than a filter, e.g. 'structured navy wool blazer with natural "
+            "shoulder for smart-casual layering'. This is the text used to search the "
+            "product catalog, so describe the garment, not the problem. Empty if gap_type "
+            "is 'none'."
+        ),
+    )
+
 class ScanResult(BaseModel):
     """The structured output from the Vision/Scan node."""
     detected_items: List[DetectedItem]

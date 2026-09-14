@@ -8,44 +8,79 @@ FashAr is a next-generation, AI-driven personal styling application that provide
 
 https://fash-ar-v2.vercel.app/
 
+> **Build status and known issues:** see [PROJECT_STATUS.md](PROJECT_STATUS.md). The AI
+> pipeline is currently awaiting a working NVIDIA NIM key and refreshed model IDs.
+
 ---
 
 ## ✨ Core Features
 
 - 📸 **Instant Expert Critique**
-  Upload an outfit photo, and our AI vision model (NVIDIA NIM Qwen-VL) evaluates it based on color cohesion, occasion appropriateness, and silhouette fit.
+  Upload an outfit photo and a multimodal vision model extracts every garment — type, colour, fabric, fit — then a reasoning model grades it on colour cohesion, occasion appropriateness, silhouette and completeness.
 
 - 🔍 **Find the Gap**
-  Missing a jacket? Need better footwear? FashAr identifies exactly what is holding your outfit back from a perfect 100 style score.
+  Missing a jacket? Need better footwear? FashAr identifies the single element holding your outfit back from a perfect 100, as one of six gap types: `structure`, `footwear`, `texture`, `accessory`, `color` or `none`.
 
 - 🛍️ **Smart Completers (RAG)**
-  Using a Vector Database (Pinecone), FashAr searches your personal virtual closet (or a defined catalog) to recommend real, purchasable items that perfectly fill the identified style gap.
+  The critic describes the missing piece the way a product listing would — *"structured navy wool blazer with natural shoulder"* — and Pinecone embeds that phrase server-side to search the catalog, filtered by gap type, gender, body type and size, then reranked by community ratings.
 
 - 🌤️ **Context-Aware Styling**
-  Integrates real-time local weather data (OpenWeatherMap) and intelligent persona tracking to ensure recommendations are actually wearable today.
+  Live local weather (OpenWeatherMap) suppresses or boosts gap types before retrieval, so you aren't recommended a wool coat at 30 °C.
 
 - 🌗 **Premium UI & Dark Mode**
-  A sleek, glassmorphism-inspired interface built with Next.js 15, Tailwind CSS 4.0, and dynamic animations, featuring a seamless, automatic dark mode.
+  A glassmorphism-inspired interface built with Next.js 16, Tailwind CSS 4, and dynamic animations, with class-based dark mode.
+
+---
+
+## 🧠 How the Pipeline Works
+
+A single `/analyze` request runs a three-node LangGraph workflow:
+
+```
+scan      Vision model extracts garments + colour palette   -> ScanResult
+   |
+critique  Reasoning model scores the outfit, names the gap,
+          and writes a product-style description of it      -> CritiqueResult
+   |
+retrieve  Pinecone embeds that description and searches the
+          catalog, filtered and reranked                    -> RecommendedProduct[]
+```
+
+Retrieval is skipped entirely when the score is ≥ 90 or the gap is `none` — a finished
+outfit gets no upsell.
 
 ---
 
 ## 🛠️ Tech Stack
 
 **Frontend (Web App)**
-- **Framework:** Next.js 15 (App Router), React 19
-- **Styling:** Tailwind CSS 4.0 (Custom class-based Dark Mode)
+- **Framework:** Next.js 16 (App Router), React 19
+- **Styling:** Tailwind CSS 4 (class-based dark mode)
 - **Authentication:** Clerk
-- **UI Components:** Sonner (Toast notifications), Lucide React (Icons)
-- **Deployment:** Vercel (Planned)
+- **UI Components:** Sonner (toasts), Lucide React (icons), react-dropzone
+- **Deployment:** Vercel
 
 **Backend (AI Engine & API)**
-- **Framework:** Python, FastAPI, Uvicorn
-- **AI/LLM Routing:** LangGraph (Stateful analysis workflow)
-- **Vision Model:** NVIDIA NIM API (Qwen 3.5 VL 72b)
-- **Databases:** 
-  - Supabase (PostgreSQL) for user data & outfit history
-  - Pinecone for Vector Embeddings (RAG closet search)
-- **Deployment:** Render / Railway 
+- **Framework:** Python 3.11, FastAPI, Uvicorn
+- **Orchestration:** LangGraph — stateful `scan → critique → retrieve` workflow
+- **Vision & reasoning:** NVIDIA NIM hosted models. The exact IDs live in
+  `ai-core/app/nodes/` — treat the code as the source of truth, since NVIDIA retires
+  hosted models regularly.
+- **Embeddings:** Pinecone **integrated inference** (`llama-text-embed-v2`, 1024-dim).
+  Pinecone hosts the model and embeds text server-side on both write and query, so no
+  embedding API key is needed.
+- **Databases:**
+  - Supabase (PostgreSQL) — outfit history and product ratings
+  - Pinecone — product catalog vector search
+- **Deployment:** Render
+
+### Security model
+
+The AI Core sits on a public URL but accepts requests only from the Next.js route, which
+verifies the Clerk session first and forwards a shared `X-Gateway-Secret`. It applies a
+per-user rate limit and layered timeouts. Supabase tables have RLS enabled with no
+policies, so the public anon key cannot reach them — the API routes use the service-role
+key and filter by user id themselves.
 
 ---
 
@@ -85,6 +120,10 @@ Run the backend server:
 uvicorn app.main:app --reload --port 8000
 ```
 
+> If port 8000 is already taken (XAMPP/Apache claims it on many Windows setups), run on
+> 8001 instead and set `NEXT_PUBLIC_API_URL` to match — that is the port the frontend
+> falls back to by default.
+
 ### 3. Frontend Setup
 Open a new terminal, navigate to the frontend folder, and install dependencies:
 ```bash
@@ -109,6 +148,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 # --- AI Core (read by the Python backend in local dev) ---
 NVIDIA_NVIM_KEY=your_nvidia_api_key
 PINECONE_KEY=your_pinecone_api_key
+PINECONE_INDEX=fashr-products-v2
 OPENWEATHER_KEY=your_openweathermap_api_key
 
 # --- Gateway ---
@@ -128,19 +168,31 @@ Optional tuning (all have working defaults):
 | `LLM_TIMEOUT_SECONDS` | `40` | Ceiling on a single NIM call |
 | `ANALYSIS_TIMEOUT_SECONDS` | `55` | Ceiling on the whole LangGraph run |
 
-### Securing the database
-
-Once the app runs, apply [`scripts/enable_rls.sql`](scripts/enable_rls.sql) in the Supabase
-SQL editor. It enables Row-Level Security with no policies, which locks the public anon key
-out of `wardrobe_history` and `product_ratings` while the service-role key used by the API
-routes continues to work. Rotate the anon key afterwards.
-
 Run the frontend development server:
 ```bash
 npm run dev
 ```
 
 Visit `http://localhost:3000` in your browser.
+
+### 4. Seed the product catalog
+
+Recommendations come from a Pinecone index, which starts empty. Seed it once:
+
+```bash
+python scripts/seed_products.py
+```
+
+This creates `fashr-products-v2` with the `llama-text-embed-v2` model attached and upserts
+the catalog. Pinecone computes the embeddings server-side, so this needs only
+`PINECONE_KEY`. Re-running is safe — ids are deterministic, so it overwrites in place.
+
+### 5. Secure the database
+
+Apply [`scripts/enable_rls.sql`](scripts/enable_rls.sql) in the Supabase SQL editor **after**
+deploying, not before. It enables Row-Level Security with no policies, which locks the
+public anon key out of `wardrobe_history` and `product_ratings` while the service-role key
+used by the API routes continues to work. Rotate the anon key afterwards.
 
 ---
 

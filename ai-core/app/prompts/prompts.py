@@ -35,7 +35,21 @@ YOUR TASK:
    - Completeness (Does it look intentional, or thrown together?)
 2. Calculate an overall average Style Score (1-100). If it's bad, score it low.
 3. Write a 3-5 sentence `narrative_critique`. It must be highly articulate and actionable. Frame your critique around the technical reasons why the proportions, layers, or colors succeed or fail. Explain the *why*.
-4. Identify the ONE most critical `gap_type` in the outfit. What is the missing 'completer piece' that would instantly elevate the score? State clearly if it needs 'structure' (e.g., tailored jacket), 'texture' (e.g., knitwear), 'contrast' (e.g., bright accessory), or a fundamental swap (e.g., different footwear).
+4. Identify the ONE most critical `gap_type` in the outfit — the missing 'completer piece'
+   that would instantly elevate the score. You MUST choose exactly one of these six values,
+   spelled exactly as shown. No other value is accepted:
+   - "structure"  — needs a tailored or structured layer (blazer, jacket, coat)
+   - "footwear"   — the shoes are letting the outfit down and should be swapped
+   - "texture"    — the surfaces are flat; needs knitwear, suede, corduroy or similar
+   - "accessory"  — needs a belt, bag, watch, scarf, hat or jewellery
+   - "color"      — the palette needs a deliberate accent or contrast piece
+   - "none"       — the outfit is genuinely complete; nothing is missing
+
+5. Write `gap_query`: a short description of that missing piece, phrased the way a product
+   listing would describe it, not the way a filter would. Name the garment, its material,
+   colour and cut. Write "" if gap_type is "none".
+   Good: "structured navy wool blazer with natural shoulder for smart-casual layering"
+   Bad:  "something with more structure" / "item for structure gap"
 
 Remember: Output strictly to the requested JSON schema. Do not include markdown formatting outside of the JSON block if it breaks parsing.
 """

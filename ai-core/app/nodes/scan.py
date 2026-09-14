@@ -105,6 +105,11 @@ async def scan_outfit(state: AgentState) -> dict:
         print(f"Error in scan_outfit: timed out after {LLM_TIMEOUT_SECONDS}s")
         raise
     except Exception as e:
-        print(f"Error in scan_outfit: {e}")
-        # Fallback empty result so the graph doesn't crash
-        return {"scan_result": ScanResult(detected_items=[], color_palette=[])}
+        # The graph continues with an empty scan so the critic can still respond to the
+        # user's stated occasion and persona, but the reason is recorded. Without it, a
+        # failed vision call is indistinguishable from a photo containing no clothes.
+        print(f"Error in scan_outfit: {type(e).__name__}: {e}")
+        return {
+            "scan_result": ScanResult(detected_items=[], color_palette=[]),
+            "error": f"Scan step failed ({type(e).__name__}): {e}",
+        }

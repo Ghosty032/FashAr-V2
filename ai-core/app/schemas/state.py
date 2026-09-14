@@ -14,6 +14,9 @@ class AgentState(TypedDict):
     # User Profile (from Supabase/Clerk context if needed)
     gender: str
     body_type: List[str]
+    # Populated once the analyze route looks up the user's saved profile (Tier 2, item 7).
+    # Until then it stays empty and the size filter is simply not applied.
+    sizes: List[str]
     
     # Phase 5 — Weather context
     latitude: Optional[float]
@@ -23,6 +26,11 @@ class AgentState(TypedDict):
     # Internal AI Pipeline Data
     scan_result: Optional[ScanResult]
     critique_result: Optional[CritiqueResult]
+
+    # Why the pipeline failed, if it did. Without this, a node that swallows an exception
+    # and returns a fallback is indistinguishable from one that genuinely succeeded, and
+    # every backend failure surfaces to the user as the same generic 500.
+    error: Optional[str]
     
     # Phase 4 — Pinecone RAG results
     recommended_products: List[Dict[str, Any]]

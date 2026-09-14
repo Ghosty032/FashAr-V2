@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useAuth, useUser } from "@clerk/nextjs";
-import { createClerkSupabaseClient } from "@/lib/supabase";
+import { useState, useEffect } from "react";
+import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 
 export default function Onboarding() {
-  const { getToken } = useAuth();
   const { user } = useUser();
   const router = useRouter();
 
@@ -16,6 +14,30 @@ export default function Onboarding() {
   const [brands, setBrands] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Sign-in and sign-up both redirect here, so most visits are returning users. Load any
+  // existing profile and prefill, rather than presenting an empty form they must redo.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/profile");
+        if (!res.ok) return;
+        const { profile } = await res.json();
+        if (cancelled || !profile) return;
+        setGender(profile.gender_filter ?? "unisex");
+        setBodyType(profile.body_type ?? []);
+        setSizeRange(profile.size_range ?? []);
+        setBrands((profile.preferred_brands ?? []).join(", "));
+      } catch {
+        // A failed prefill is not worth blocking the form over.
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const bodyTypeOptions = ["slim", "regular", "athletic", "plus", "petite", "tall"];
   const sizeOptions = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "3XL"];
@@ -35,30 +57,26 @@ export default function Onboarding() {
     setError("");
 
     try {
-      // 1. Get the Clerk session token
-      const token = await getToken({ template: "supabase" });
-      if (!token) throw new Error("Could not authenticate with Supabase. Please check your Clerk JWT template.");
-
-      // 2. Initialize Supabase client with the token
-      const supabase = createClerkSupabaseClient(token);
-
-      // 3. Insert profile into the users table
+      // Saved server-side, where the Clerk session is verified. The id and email are taken
+      // from that session, so they are not sent from here.
       const brandArray = brands.split(',').map(b => b.trim()).filter(b => b !== '');
-      
-      const { error: dbError } = await supabase
-        .from('users')
-        .insert({
-          id: user.id,
-          email: user.primaryEmailAddress?.emailAddress || "",
+
+      const res = await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           gender_filter: gender,
           body_type: bodyType,
           size_range: sizeRange,
-          preferred_brands: brandArray
-        });
+          preferred_brands: brandArray,
+        }),
+      });
 
-      if (dbError) throw dbError;
+      if (!res.ok) {
+        const { error: msg } = await res.json().catch(() => ({ error: "" }));
+        throw new Error(msg || "Failed to save profile.");
+      }
 
-      // 4. Redirect to main app
       router.push("/");
     } catch (err: any) {
       console.error(err);
@@ -164,10 +182,10 @@ export default function Onboarding() {
 
           <button
             type="submit"
-            disabled={isSubmitting || sizeRange.length === 0 || bodyType.length === 0}
+            disabled={isLoading || isSubmitting || sizeRange.length === 0 || bodyType.length === 0}
             className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-black hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black disabled:opacity-50 transition-colors"
           >
-            {isSubmitting ? "Saving Profile..." : "Complete Setup"}
+            {isLoading ? "Loading…" : isSubmitting ? "Saving Profile..." : "Complete Setup"}
           </button>
         </form>
       </div>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 export const maxDuration = 60; // Allow 60s for AI to respond if on Vercel Pro
 
@@ -14,8 +15,31 @@ export async function POST(request: Request) {
     // 2. Parse the incoming multipart form data from the client
     const formData = await request.formData();
 
-    // 3. Optional: Validate the data before sending to Python
-    // (We assumed the client does basic validation like occasion, persona, etc.)
+    // 3. Attach the user's saved style profile.
+    //
+    // Done here rather than in the browser on purpose: the client cannot spoof its own
+    // gender or sizing, and Scanner.tsx does not need to know these fields exist. Without
+    // this the AI Core always fell back to gender="unisex" with no body type or sizes,
+    // which disabled the product filters entirely — men were getting women's shoes.
+    //
+    // A missing or unreachable profile is not fatal: the analysis still runs, just with
+    // unfiltered recommendations.
+    try {
+      const supabase = getSupabaseAdmin();
+      const { data: profile } = await supabase
+        .from("users")
+        .select("gender_filter, body_type, size_range")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (profile) {
+        formData.set("gender", profile.gender_filter ?? "unisex");
+        formData.set("body_type", JSON.stringify(profile.body_type ?? []));
+        formData.set("sizes", JSON.stringify(profile.size_range ?? []));
+      }
+    } catch (profileErr) {
+      console.warn("[NextJS Gateway] Profile lookup failed, continuing unfiltered:", profileErr);
+    }
 
     // 4. Forward the exact FormData directly to the Python FastAPI instance
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001";

@@ -5,11 +5,11 @@ Fetches live weather from OpenWeatherMap and applies PRD §5.5 suppression rules
 
 import os
 import httpx
-from dotenv import load_dotenv
 
-# Load env
-_parent = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-load_dotenv(os.path.join(_parent, "frontend", ".env.local"))
+# Single source of truth for env loading — see the note in pinecone_service.py. The
+# load_dotenv call this replaced pointed at `ai-core/frontend/.env.local`, which does not
+# exist; it only worked because app.config had already populated os.environ.
+import app.config  # noqa: F401
 
 OPENWEATHER_KEY = os.getenv("OPENWEATHER_KEY")
 OPENWEATHER_URL = "https://api.openweathermap.org/data/2.5/weather"

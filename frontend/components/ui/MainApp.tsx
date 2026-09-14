@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Scanner from "./Scanner";
+import Scanner, { type AnalysisContext } from "./Scanner";
 import Results from "./Results";
 import History from "./History";
 import { FinalAnalysis } from "@/lib/types/ai";
@@ -14,16 +14,18 @@ export default function MainApp() {
   const [view, setView] = useState<View>("scanner");
   const [analysisData, setAnalysisData] = useState<FinalAnalysis | null>(null);
 
-  const handleAnalysisComplete = async (data: FinalAnalysis) => {
+  const handleAnalysisComplete = async (data: FinalAnalysis, context: AnalysisContext) => {
     setAnalysisData(data);
     setView("results");
 
-    // Auto-save to Supabase in background
+    // Auto-save to Supabase in background. The occasion and persona come from the Scanner
+    // rather than from `data` — the analysis response has never carried them, which is why
+    // those columns were always null.
     try {
       const res = await fetch("/api/history", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, ...context }),
       });
       if (res.ok) {
         console.log("[MainApp] Analysis saved to history");

@@ -18,7 +18,8 @@ _root = os.path.dirname(os.path.dirname(__file__))
 load_dotenv(os.path.join(_root, "frontend", ".env.local"))
 
 PINECONE_KEY = os.getenv("PINECONE_KEY")
-INDEX_NAME = "fashr-products"
+# Must match the index the retriever reads from, or weights land on a dead index.
+INDEX_NAME = os.getenv("PINECONE_INDEX", "fashr-products-v2")
 SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
 
