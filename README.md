@@ -173,9 +173,19 @@ Optional tuning (all have working defaults):
 | `CRITIC_MODEL` | see `app/config.py` | Model that scores the outfit |
 
 Model IDs are configuration rather than code because NVIDIA retires hosted models
-regularly. Check candidates against `GET https://integrate.api.nvidia.com/v1/models` —
-`ChatNVIDIA.get_available_models()` reads a stale table baked into the library and will list
-models that no longer exist.
+regularly. To check your key and the configured IDs in one step:
+
+```bash
+python ai-core/scripts/check_models.py
+```
+
+It separates the two failure modes, which look identical from inside the app but need
+completely different fixes: a key with no inference entitlement (nothing you change in the
+code will help) versus a model ID that has been retired (it suggests a working replacement
+and prints the variable to set).
+
+Never trust `ChatNVIDIA.get_available_models()` — it reads a static table baked into the
+library and lists models that no longer exist.
 
 The AI Core prints its configuration at startup and names anything missing. `GET /` reports
 the same as `{"status": "degraded", "missing_settings": [...]}`.
