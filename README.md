@@ -51,6 +51,145 @@ outfit gets no upsell.
 
 ---
 
+## 🔍 Request Lifecycle — what runs, and where
+
+One click of **Analyze My Outfit**, traced through every file it touches.
+
+```
+Browser                    Vercel (Node)                 Render (Python)
+────────                   ─────────────                 ───────────────
+Scanner.tsx
+  handleSubmit()  ──POST──▶ app/api/analyze/route.ts
+                              auth() ─────────────────▶ Clerk
+                              profile lookup ─────────▶ Supabase
+                              + X-Gateway-Secret
+                                      │
+                                      └──────POST──────▶ main.py  analyze_outfit()
+                                                           deps.py  gate + rate limit
+                                                           weather_service ──▶ OpenWeatherMap
+                                                           graph.ainvoke()
+                                                             ├─ scan.py ─────▶ NVIDIA NIM
+                                                             ├─ critique.py ─▶ NVIDIA NIM
+                                                             └─ retrieve.py ─▶ Pinecone
+                                      ◀──── FinalAnalysis ────┘
+MainApp.tsx ◀── JSON ────────┘
+  └─POST /api/history ─────▶ Supabase
+```
+
+### 1. The browser builds the request
+[`Scanner.tsx:53`](frontend/components/ui/Scanner.tsx#L53) — `handleSubmit()`
+
+Validates input (text mode needs ≥ 6 words), then asks for geolocation at
+[line 72](frontend/components/ui/Scanner.tsx#L72) with a 5s timeout. **Denial is not an
+error** — it just proceeds without weather. Assembles `FormData` at
+[lines 83-95](frontend/components/ui/Scanner.tsx#L83-L95): the image *or* text, occasion
+tiers, persona, and coordinates if granted.
+
+Note what it does **not** send: gender, body type, sizes. Those are attached server-side so
+the browser cannot spoof them.
+
+### 2. The gateway authenticates and enriches
+[`app/api/analyze/route.ts:8`](frontend/app/api/analyze/route.ts#L8) — `POST`
+
+- [L11](frontend/app/api/analyze/route.ts#L11) `auth()` — Clerk session, else 401.
+- [L29-39](frontend/app/api/analyze/route.ts#L29-L39) Looks up the user's profile via
+  `getSupabaseAdmin()` and sets `gender`, `body_type` and `sizes` onto the FormData. A
+  missing profile or unreachable database logs a warning and continues **unfiltered** —
+  never fatal.
+- [L49](frontend/app/api/analyze/route.ts#L49) Fails closed if `GATEWAY_SECRET` is unset.
+- [L60-70](frontend/app/api/analyze/route.ts#L60-L70) Forwards to the AI Core with
+  `X-Gateway-Secret` and `X-User-Id`, aborting at 58s.
+
+`Content-Type` is deliberately not set — `fetch` must generate the multipart boundary.
+
+### 3. The AI Core admits the request
+[`main.py:49`](ai-core/app/main.py#L49) — `analyze_outfit`
+
+The route's `dependencies=[Depends(enforce_rate_limit)]` runs **before** the handler:
+[`deps.py:41`](ai-core/app/deps.py#L41) `verify_gateway` does a constant-time secret
+comparison, then [`deps.py:66`](ai-core/app/deps.py#L66) applies a per-user sliding window
+(20/hour). The limiter lives here, not in Node, because Render runs one long-lived process
+where an in-memory counter actually holds.
+
+Then: image → base64 data URI ([L79](ai-core/app/main.py#L79)), occasion tiers joined,
+`body_type`/`sizes` JSON-parsed tolerantly ([L89](ai-core/app/main.py#L89) — malformed
+values degrade to `[]` rather than failing), and weather fetched at
+[L106](ai-core/app/main.py#L106) only if coordinates arrived.
+
+### 4. The graph runs
+[`graph.py:15-23`](ai-core/app/graph.py#L15-L23) — `START → scan → critique → retrieve → END`
+
+Invoked at [`main.py:125`](ai-core/app/main.py#L125) under a 55s ceiling. State flows
+through `AgentState` (`schemas/state.py`), which also carries an `error` channel.
+
+### 5. `scan` — what am I wearing?
+[`nodes/scan.py:13`](ai-core/app/nodes/scan.py#L13) — `scan_outfit`
+
+Picks `VISION_MODEL` for images, `TEXT_SCAN_MODEL` for text. Makes **one** call via
+`ainvoke_with_retry`, then extracts JSON from the raw text with
+[`json_utils.extract_json_object`](ai-core/app/json_utils.py) rather than chaining
+`JsonOutputParser` — reasoning models narrate before answering, which the parser rejects
+outright. Produces `ScanResult`.
+
+On failure it returns an **empty** `ScanResult` plus an `error`, so the critic can still
+respond to the stated occasion. A timeout is re-raised rather than swallowed.
+
+### 6. `critique` — how good is it, and what's missing?
+[`nodes/critique.py:12`](ai-core/app/nodes/critique.py#L12) — `critique_outfit`
+
+Feeds the scan plus user context to `CRITIC_MODEL`. Returns `CritiqueResult`: four rubric
+scores, an overall score, a narrative, a `gap_type` from six literals, and **`gap_query`** —
+a product-style phrase like *"structured navy wool blazer with natural shoulder"*. That
+field is the hinge between critique and retrieval.
+
+### 7. `retrieve` — find the missing piece
+[`nodes/retrieve.py:27`](ai-core/app/nodes/retrieve.py#L27) — `retrieve_products`
+
+Short-circuits when `style_score ≥ 90` or `gap_type == "none"`. Applies weather rules: a
+suppressed gap switches to a boosted one, or retrieval is skipped. Calls Pinecone through
+`asyncio.to_thread` — the SDK is synchronous and would otherwise block the event loop.
+
+### 8. Vector search
+[`services/pinecone_service.py:101`](ai-core/app/services/pinecone_service.py#L101) — `query_products`
+
+Pinecone embeds `gap_query` server-side (integrated inference — nothing here computes a
+vector). [`_build_filter`](ai-core/app/services/pinecone_service.py#L43) pushes `gap_type`,
+gender, body type and size into the query itself. Fetches 20 candidates, reranks by
+`retrieval_weight` (derived from user star ratings), returns 3.
+
+If personal filters match nothing it **relaxes** to gap + gender rather than showing an
+empty panel.
+
+### 9. Response assembled
+Back in [`main.py:139-170`](ai-core/app/main.py#L139-L170). A recorded `error` becomes a
+**502** carrying the real reason. A failed scan with zero detected garments is also 502 —
+otherwise the critic's "1/100, no garments present" would reach the user as a real score.
+Otherwise a `FinalAnalysis` is returned.
+
+### 10. Render and persist
+[`Scanner.tsx:98`](frontend/components/ui/Scanner.tsx#L98) receives the JSON and calls
+`onAnalysisComplete(data, { occasion, persona })` — the context is passed separately
+because the analysis response never carried it.
+
+[`MainApp.tsx:16`](frontend/components/ui/MainApp.tsx#L16) switches to the results view
+**immediately**, then saves to `/api/history` in the background. A failed save logs but does
+not block the user from seeing their result. `Results.tsx` renders; each star click POSTs to
+`/api/rate`, which eventually feeds `retrieval_weight` back into step 8 via the daily
+workflow.
+
+### Where it breaks, and what you'll see
+
+| Symptom | Cause | Where |
+| --- | --- | --- |
+| `Server misconfigured` | `GATEWAY_SECRET` unset | [route.ts:50](frontend/app/api/analyze/route.ts#L50) |
+| `401 Unauthorized` | secret mismatch between Node and Python | [deps.py:41](ai-core/app/deps.py#L41) |
+| `429` | 20 analyses/hour exceeded | [deps.py:66](ai-core/app/deps.py#L66) |
+| `502` + a real reason | a node recorded an error | [main.py:143](ai-core/app/main.py#L143) |
+| `504` | graph exceeded 55s | [main.py:127](ai-core/app/main.py#L127) |
+| Empty recommendations | score ≥ 90, gap `none`, or weather suppression | [retrieve.py:27](ai-core/app/nodes/retrieve.py#L27) |
+
+---
+
 ## 🛠️ Tech Stack
 
 **Frontend (Web App)**

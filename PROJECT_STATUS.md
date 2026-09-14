@@ -5,8 +5,10 @@
 A working snapshot of where this project actually stands: what it does, what is currently
 broken, what has been fixed, and what is left. Written to be picked up cold after a break.
 
-> **Read this first:** the application does not run end-to-end right now. Two external
-> services are down, and neither is a code problem. See [Current Status](#2-current-status).
+> **Status: the text-description path works end to end.** Verified through the UI on
+> 2026-09-14 — scan → critique → retrieve → recommendations → saved history. The image
+> upload path is wired but has not been exercised with a real photo. One security task
+> remains outstanding, see [Current Status](#2-current-status).
 
 ---
 
@@ -62,43 +64,54 @@ Clerk                <-- auth
 
 Verified 2026-09-14. Re-check with the commands in each section.
 
-### NVIDIA NIM — key authenticates, inference forbidden
+### NVIDIA NIM — working
 
-The API key can list models but cannot run anything:
+A replacement key was added on 2026-09-14 and runs inference. The previous key could list
+models but returned 403 on every completion — the signature of exhausted credits, not a
+code defect.
 
-```
-GET  /v1/models            -> 200, 82 models returned
-POST /v1/chat/completions  -> 403 {"detail":"Authorization failed"}
-POST /v1/embeddings        -> 403 {"detail":"Authorization failed"}
-```
+**The original model IDs were also all dead.** A batch of NVIDIA hosted models reached
+end-of-life on 2026-08-25. Current defaults, verified live:
 
-Every model tested returns 403 on inference, including models that *are* in the live
-catalog. A key that authenticates for listing but fails every inference call points to
-exhausted credits or a revoked entitlement — not a code defect.
+| Setting | Model | Latency |
+| --- | --- | --- |
+| `VISION_MODEL` | `meta/llama-3.2-11b-vision-instruct` | 0.3s |
+| `TEXT_SCAN_MODEL` | `nvidia/nemotron-3-super-120b-a12b` | 0.6s |
+| `CRITIC_MODEL` | `nvidia/nemotron-3-super-120b-a12b` | 0.6s |
 
-**Separately, the model IDs in the code are dead.** A large batch of NVIDIA hosted models
-reached end-of-life on **2026-08-25**:
+The old `llama-3.2-90b-vision` is worth noting: it does not 404, it simply **never
+responds** — over 120s in testing, against a 40s timeout. It fails as a hang, not an error.
 
-| Model ID                             | Used by                      | Status       |
-| ------------------------------------ | ---------------------------- | ------------ |
-| `meta/llama-3.2-90b-vision-instruct` | `nodes/scan.py` (image path) | 403          |
-| `meta/llama-3.1-70b-instruct`        | `nodes/scan.py` (text path)  | **410 Gone** |
-| `meta/llama-3.1-405b-instruct`       | `nodes/critique.py`          | 404          |
+Run `python ai-core/scripts/check_models.py` after any key or model change. It separates
+"key has no entitlement" from "model ID retired", which look identical from inside the app
+but need completely different fixes.
 
-Both problems must be fixed: a new key alone will not help while the IDs point at retired
-models.
+> **Two stale-table traps.** `ChatNVIDIA.get_available_models()` reads a static table
+> compiled into `langchain-nvidia-ai-endpoints` and lists retired models — only
+> `GET https://integrate.api.nvidia.com/v1/models` is authoritative. The same table causes
+> startup warnings that a model's "type is unknown" or that it is "not known to support
+> tools"; both are false negatives, verified live. See the note in `app/config.py`.
 
-> **Trap:** `ChatNVIDIA.get_available_models()` reads a static table compiled into
-> `langchain-nvidia-ai-endpoints`. It cheerfully lists all three dead models. Only
-> `GET https://integrate.api.nvidia.com/v1/models` reflects reality.
+**Expect occasional 503s.** The hosted free tier returns "Service temporarily overloaded"
+regularly under load. `app/nim.py` retries these within a shared time budget; permanent
+failures (404/410/403) are not retried.
 
-### Supabase — project not resolving
+### Supabase — back, but RLS is still not applied
 
-`rxwhuubdyygwhughkunu.supabase.co` fails DNS resolution, while `github.com` and
-`api.nvidia.com` resolve from the same shell. That is a paused or deleted free-tier project
-(Supabase pauses inactive free projects and their hostnames stop resolving).
+The project resolves again and the REST API answers, so the earlier DNS failure was a
+pause, not a deletion. The service-role key is configured locally.
 
-History and ratings are therefore non-functional in production.
+🔴 **`scripts/enable_rls.sql` has never been run.** Verified 2026-09-14: the public anon key
+still reads rows out of `wardrobe_history`, including their Clerk `user_id`. That key ships
+to every browser. Until the script is applied, anyone who views the deployed site's source
+can read, insert or delete every user's history directly against the REST API, bypassing the
+routes entirely.
+
+Order matters: deploy `SUPABASE_SERVICE_ROLE_KEY` to Vercel **first**, then run the script,
+then rotate the anon key. Running it before the deploy breaks history saves in production.
+
+Two dead tables, `analyses` and `ratings`, survive from the original schema. Nothing reads
+them; drop them once confirmed.
 
 ### Pinecone — healthy
 
@@ -381,6 +394,24 @@ empty gap_type product      -> survives post-filter (was silently dropped)
 missing gap_query           -> prose fallback, still returns 3
 ```
 
+Live end-to-end, text path, through the real pipeline:
+
+```
+"navy slim jeans, white cotton tee, white canvas sneakers"  (Smart Casual, Minimalist)
+   detected  3 garments + palette  #0A1F44 Dark Navy / #FFFFFF White
+   score     68, gap=footwear
+   gap_query "tan suede desert boots with crepe sole"
+   returned  Suede Desert Boots (Clarks) 0.667 · Chelsea Boots (RM Williams) 0.379
+
+"black ribbed turtleneck, grey wool midi skirt, black ankle boots"  (Business, Old Money)
+   score     74, gap=structure  — after two 503 retries recovered automatically
+   returned  Cropped Double-Breasted Blazer (Zara) 0.433
+```
+
+The 0.667 match is the retrieval chain working as designed: the critic described the missing
+piece as a product listing would, Pinecone embedded that phrase, and the closest catalog item
+came back first.
+
 Tier 3 + 4 — failure visibility and profile filtering:
 
 ```
@@ -509,10 +540,10 @@ Tracked but explicitly out of scope for now.
       without revoking the previous one.
 - [ ] Dark mode is half-applied: `ImageUploadZone`, onboarding, sign-in and sign-up have no
       `dark:` variants.
-- [ ] Marketing copy claims a "122B parameter" model (`layout.tsx` metadata, `Scanner.tsx`)
-      and "100B+" (`page.tsx`); the README says Qwen 3.5 VL 72b; the health check says Llama
-      3.2 Vision; the code used a 90B model. None of these agree, and the 122B figure is in
-      public OpenGraph metadata.
+- [ ] Marketing copy overstates the model. `layout.tsx` metadata and `Scanner.tsx` claim
+      "122B parameter", `page.tsx` says "100B+". The vision model is actually **11B**, and
+      the critic is a 120B MoE with ~12B active. The README and health check were corrected;
+      these three were not, and the 122B figure sits in public OpenGraph metadata.
 
 ---
 
