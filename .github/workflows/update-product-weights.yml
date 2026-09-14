@@ -1,0 +1,46 @@
+name: Update product weights
+
+# Turns accumulated star ratings into Pinecone retrieval weights, so highly-rated products
+# surface earlier in recommendations. Without this the weights stay at their seeded values
+# and the ratings users leave feed nothing.
+
+on:
+  schedule:
+    # 03:17 UTC daily. Deliberately off the hour: GitHub's scheduler is busiest on the hour
+    # and queues jobs, which can delay a run by many minutes.
+    - cron: "17 3 * * *"
+  workflow_dispatch: {}   # allow running it by hand from the Actions tab
+
+concurrency:
+  # Never let two runs write to the same index at once.
+  group: update-product-weights
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"   # matches ai-core/runtime.txt
+          cache: pip
+          cache-dependency-path: ai-core/requirements-dev.txt
+
+      - name: Install dependencies
+        # requirements-dev brings in the supabase client, which the web service itself
+        # does not need.
+        run: pip install -r ai-core/requirements-dev.txt
+
+      - name: Sync ratings into Pinecone
+        env:
+          PINECONE_KEY: ${{ secrets.PINECONE_KEY }}
+          PINECONE_INDEX: ${{ vars.PINECONE_INDEX || 'fashr-products-v2' }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          # Service-role, not anon: RLS denies the anon key, which would make this report
+          # "no ratings found" forever instead of failing loudly.
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python ai-core/scripts/update_product_weights.py

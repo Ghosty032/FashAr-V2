@@ -1,27 +1,37 @@
 """
-FASHR Phase 7 — Background Sync: Update Product Weights
-Reads ratings from Supabase, calculates averages, and updates
-retrieval_weight / rating_score / rating_count in Pinecone metadata.
+FASHR — Background sync: turn star ratings into Pinecone retrieval weights.
 
-Run periodically (e.g., daily via cron, Railway, or GitHub Actions):
-  python scripts/update_product_weights.py
+Reads every rating from Supabase, averages per product, and writes
+retrieval_weight / rating_score / rating_count back into the product's Pinecone metadata,
+where `query_products` uses them to rerank search results.
+
+Only metadata is touched, so nothing is re-embedded and `chunk_text` is left alone.
+
+Runs on a schedule — see .github/workflows/update-product-weights.yml — or by hand:
+  python ai-core/scripts/update_product_weights.py
 """
 
-import os
 import sys
-from dotenv import load_dotenv
-from pinecone import Pinecone
-from supabase import create_client
+from pathlib import Path
 
-# Load env from frontend/.env.local
-_root = os.path.dirname(os.path.dirname(__file__))
-load_dotenv(os.path.join(_root, "frontend", ".env.local"))
+# Import app.config for credentials rather than loading .env here. The load_dotenv call
+# this replaced pointed at `ai-core/frontend/.env.local`, which does not exist.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-PINECONE_KEY = os.getenv("PINECONE_KEY")
-# Must match the index the retriever reads from, or weights land on a dead index.
-INDEX_NAME = os.getenv("PINECONE_INDEX", "fashr-products-v2")
-SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
-SUPABASE_KEY = os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+import os  # noqa: E402
+
+from pinecone import Pinecone  # noqa: E402
+from supabase import create_client  # noqa: E402
+
+from app.config import PINECONE_KEY, PINECONE_INDEX, PINECONE_NAMESPACE  # noqa: E402
+
+INDEX_NAME = PINECONE_INDEX
+SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+
+# Must be the service-role key. RLS is enabled on product_ratings with no policies, so the
+# anon key this script used to rely on can no longer read the table at all — it would
+# silently return zero rows and report "nothing to update" forever.
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
 
 def calculate_weight(avg_rating: float, count: int) -> float:
@@ -39,8 +49,15 @@ def calculate_weight(avg_rating: float, count: int) -> float:
 
 
 def main():
-    if not all([PINECONE_KEY, SUPABASE_URL, SUPABASE_KEY]):
-        print("Missing env vars. Ensure PINECONE_KEY, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY are set.")
+    missing = [
+        name for name, value in (
+            ("PINECONE_KEY", PINECONE_KEY),
+            ("SUPABASE_URL", SUPABASE_URL),
+            ("SUPABASE_SERVICE_ROLE_KEY", SUPABASE_KEY),
+        ) if not value
+    ]
+    if missing:
+        print(f"Missing required settings: {', '.join(missing)}")
         sys.exit(1)
 
     # 1. Fetch all ratings from Supabase
@@ -79,7 +96,10 @@ def main():
                     "rating_score": round(avg, 2),
                     "rating_count": stats["count"],
                     "retrieval_weight": weight,
-                }
+                },
+                # Records are written into this namespace by seed_products.py. Omitting it
+                # targets a different namespace, where the update silently does nothing.
+                namespace=PINECONE_NAMESPACE,
             )
             updates += 1
             print(f"  ✓ {product_id}: avg={avg:.2f}, count={stats['count']}, weight={weight}")
