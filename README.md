@@ -167,6 +167,18 @@ Optional tuning (all have working defaults):
 | `RATE_LIMIT_WINDOW_SECONDS` | `3600` | Length of that window |
 | `LLM_TIMEOUT_SECONDS` | `40` | Ceiling on a single NIM call |
 | `ANALYSIS_TIMEOUT_SECONDS` | `55` | Ceiling on the whole LangGraph run |
+| `PINECONE_NAMESPACE` | `__default__` | Namespace holding the product records |
+| `VISION_MODEL` | see `app/config.py` | Model for the image scan path |
+| `TEXT_SCAN_MODEL` | see `app/config.py` | Model for the text-only scan path |
+| `CRITIC_MODEL` | see `app/config.py` | Model that scores the outfit |
+
+Model IDs are configuration rather than code because NVIDIA retires hosted models
+regularly. Check candidates against `GET https://integrate.api.nvidia.com/v1/models` —
+`ChatNVIDIA.get_available_models()` reads a stale table baked into the library and will list
+models that no longer exist.
+
+The AI Core prints its configuration at startup and names anything missing. `GET /` reports
+the same as `{"status": "degraded", "missing_settings": [...]}`.
 
 Run the frontend development server:
 ```bash
@@ -193,6 +205,24 @@ Apply [`scripts/enable_rls.sql`](scripts/enable_rls.sql) in the Supabase SQL edi
 deploying, not before. It enables Row-Level Security with no policies, which locks the
 public anon key out of `wardrobe_history` and `product_ratings` while the service-role key
 used by the API routes continues to work. Rotate the anon key afterwards.
+
+For a fresh database, apply [`scripts/schema.sql`](scripts/schema.sql) instead — it creates
+all three tables and enables RLS in one pass.
+
+---
+
+## 🧪 Tests
+
+```bash
+cd ai-core
+pip install -r requirements.txt -r requirements-dev.txt
+
+pytest                  # unit tests — no network, no credentials
+pytest -m integration   # live retrieval — needs PINECONE_KEY and a seeded index
+```
+
+Integration tests are excluded by default (see `pytest.ini`) so the standard run works on a
+clean checkout. Both suites, plus the frontend typecheck and lint, run in CI on every push.
 
 ---
 

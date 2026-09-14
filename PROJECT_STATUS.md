@@ -290,7 +290,65 @@ missing profile or unreachable Supabase logs a warning and proceeds unfiltered.
 `MainApp`, which merges it into the history POST. Both columns were previously always null
 because the analysis response never carried those fields.
 
-### 3.6 Verified behaviour
+### 3.6 Tier 5: configuration, tests and automation
+
+**One place reads the environment (item 14).** `app/config.py` loads it once and exposes
+typed constants; `deps.py`, both services and both LLM nodes now import from it instead of
+calling `os.getenv` themselves. Resolution order is real env vars → `ai-core/.env` →
+`frontend/.env.local`, so production keeps working while local setups do not have to move.
+Each setting accepts its historical aliases (`NVIDIA_NVIM_KEY` / `NVIDIA_NIM_API_KEY` /
+`NVIDIA_API_KEY`, and similar), which avoids a rename across every deployment target at once.
+
+Model IDs moved into config as `VISION_MODEL`, `TEXT_SCAN_MODEL` and `CRITIC_MODEL`.
+Given NVIDIA retired three of this project's models on one day, repointing them should not
+require a code change.
+
+The service now prints its configuration at startup and names anything missing along with
+what it breaks. `GET /` reports the same as `{"status": "degraded", "missing_settings":
+[...]}` — never values, since it is public — and deliberately stays 200 so the platform
+does not restart-loop a container whose only problem is an absent key.
+
+**Dependencies pinned (item 15).** `requirements.txt` now pins every direct dependency,
+adds `httpx` (imported directly by `weather_service` but previously resolving only through
+`langsmith`, one upstream change from breaking), and a new `requirements-dev.txt` carries
+`pytest`, `pytest-asyncio` and `supabase` so the deployed image does not ship test tooling.
+
+**A real test suite (item 16).** The seven `test_*.py` scratch scripts — no assertions,
+live API calls — are gone, replaced by **35 tests** in `ai-core/tests/`:
+
+- `test_gateway.py` — auth, fail-closed behaviour, rate limiting, per-user isolation
+- `test_pipeline.py` — profile parsing, malformed input, error reporting, timeouts, and the
+  retrieval node's logic with Pinecone stubbed
+- `test_retrieval_live.py` — real retrieval quality, marked `integration`
+
+`pytest.ini` excludes integration tests by default, so the standard run needs no
+credentials and no network. Run them with `pytest -m integration`. They assert on relative
+ordering rather than absolute scores, so a model update does not fail the build for reasons
+unrelated to this code.
+
+Also deleted: `frontend/src/` (create-next-app boilerplate the root `app/` shadowed),
+`gateway/` (empty), and `lib/supabase.ts` (orphaned by the profile route).
+
+**Automation (item 17).** `.github/workflows/update-product-weights.yml` runs the ratings
+sync daily; `ci.yml` runs the test suite, typecheck and lint on every push and PR.
+
+Two bugs surfaced while wiring this up:
+
+- `update_product_weights.py` authenticated with the **anon key**, which RLS now denies. It
+  would have reported "no ratings found" forever rather than failing — a silent no-op.
+  Switched to the service-role key.
+- Its Pinecone update omitted the **namespace**, so it targeted a different namespace than
+  the one the records live in and would have updated nothing. Verified against the live
+  index that `set_metadata` works and leaves `chunk_text` untouched, so no re-embedding.
+
+**Lint debt cleared as a precondition.** CI runs `npm run lint`, which was failing with 22
+pre-existing errors — mostly `catch (err: any)`. A workflow that is red from day one trains
+everyone to ignore CI, so these are fixed: new `lib/errors.ts` provides `errorMessage` and
+`isTimeoutError`, catch bindings are `unknown`, and `HistoryRecord` now uses the real types
+from `lib/types/ai.ts` instead of seven `any` fields. Down to one benign warning about an
+`<img>` on a blob preview, where `next/image` would not help.
+
+### 3.7 Verified behaviour
 
 Tier 1 — gateway, rate limiting, timeouts:
 
@@ -384,8 +442,9 @@ Item numbers are stable references used throughout this document.
       while it is down — but nothing touching the database is integration-tested until it
       returns.
 - [ ] **Obtain a working NVIDIA key.** Blocks all end-to-end testing of scan and critique.
-- [ ] **Repoint dead model IDs** in `scan.py` and `critique.py` to models that exist. Verify
-      against `GET /v1/models`, never against `get_available_models()`.
+- [ ] **Repoint dead model IDs.** Now a config change, not a code change — set
+      `VISION_MODEL`, `TEXT_SCAN_MODEL` and `CRITIC_MODEL` (see `app/config.py`). Verify
+      candidates against `GET /v1/models`, never against `get_available_models()`.
 
 ### Tier 2 — Make the RAG an actual RAG
 
@@ -424,26 +483,21 @@ Item numbers are stable references used throughout this document.
 
 ### Tier 5 — Configuration and hygiene
 
-- [ ] **14. Unify environment variables.** Three files independently call
-      `load_dotenv(frontend/.env.local)` by walking up to a sibling directory that does not
-      exist on Render. It works in production only because the platform injects real env
-      vars — local dev is the broken case. Consolidate into `config.py`, reconcile the
-      names, make the Pinecone index name an env var, and fix the port drift (README says
-      8000, the analyze route falls back to 8001).
+**Complete.** See [3.7](#36-tier-5-configuration-tests-and-automation).
 
-- [ ] **15. Pin `requirements.txt`.** No version pins at all, and it is missing `httpx`
-      (imported directly by `weather_service`, currently resolving only transitively through
-      `langsmith`) and `supabase` (needed by `update_product_weights.py`). Commit `0c114e9`
-      was already a dependency-conflict deploy fix.
+- [x] **14. Unify environment variables.** `app/config.py` is now the only module that
+      loads the environment. Every setting is a typed constant with alias support.
+- [x] **15. Pin `requirements.txt`.** All pinned; `httpx` added, `supabase` and test tooling
+      split into `requirements-dev.txt`.
+- [x] **16. Delete dead weight.** Removed `frontend/src/`, `gateway/`, seven scratch
+      scripts and the orphaned `lib/supabase.ts` — and replaced the scratch scripts with a
+      real 35-test suite.
+- [x] **17. Schedule the feedback loop.** Daily GitHub Actions workflow, plus a fix for the
+      auth bug that would have made it silently no-op.
 
-- [ ] **16. Delete dead weight.** `frontend/src/app/` is untouched create-next-app
-      boilerplate (root `app/` wins, so it is inert). Six `ai-core/test_*.py` scratch scripts
-      with no assertions sit at the package root while `ai-core/tests/` is empty. Plus the
-      empty `gateway/src/` and the placeholder root `.env`.
-
-- [ ] **17. Schedule the feedback loop.** `update_product_weights.py` is written but never
-      runs, so `retrieval_weight` sits at its seeded value and collected star ratings feed
-      nothing. Once item 9 settles the table name, wire it to a scheduled job.
+**One leftover, deliberately not touched:** the repository-root `.env` is untracked, so it
+is yours to delete locally. Every value in it is a placeholder and it misled this project
+once already — recommend removing it.
 
 ### UI — deferred by choice
 
