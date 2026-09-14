@@ -78,6 +78,28 @@ PINECONE_NAMESPACE = _first("PINECONE_NAMESPACE", default="__default__")
 # The previous defaults (llama-3.2-90b-vision / llama-3.1-70b / llama-3.1-405b) are all
 # unusable: the 70b is 410 Gone, the 405b is 404, and the 90b-vision accepts the request
 # but never responds — it exceeded 120s in testing, well past the 40s LLM_TIMEOUT.
+#
+# EXPECTED WARNINGS, safe to ignore. Starting the service prints:
+#
+#   UserWarning: Found nvidia/nemotron-3-super-120b-a12b in available_models, but type is
+#   unknown and inference may fail.
+#
+# and, if anything calls bind_tools():
+#
+#   UserWarning: Model '...' is not known to support tools.
+#
+# Both are false negatives. They come from MODEL_TABLE, a static table compiled into
+# langchain-nvidia-ai-endpoints — the same stale source that makes
+# ChatNVIDIA.get_available_models() list retired models. Tested against the live API on
+# 2026-09-14, both models run inference fine and both return tool_calls correctly.
+#
+# Do NOT try to silence these with register_model(). That function requires a hardcoded
+# `endpoint` and exists for self-hosted NIM containers that do not support /v1/models
+# listing. These models do appear in that listing, so registering them would pin an
+# endpoint and bypass normal routing — a real regression traded for cosmetic quiet.
+#
+# FashAr does not use tool calling anywhere: both nodes call .ainvoke() and parse JSON out
+# of the text (see app/json_utils.py). The tools warning cannot affect this pipeline.
 VISION_MODEL = _first("VISION_MODEL", default="meta/llama-3.2-11b-vision-instruct")
 TEXT_SCAN_MODEL = _first("TEXT_SCAN_MODEL", default="nvidia/nemotron-3-super-120b-a12b")
 CRITIC_MODEL = _first("CRITIC_MODEL", default="nvidia/nemotron-3-super-120b-a12b")
