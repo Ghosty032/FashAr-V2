@@ -146,8 +146,18 @@ async def analyze_outfit(
         print(f"Analysis incomplete: {detail}")
         raise HTTPException(status_code=502, detail=detail)
 
-    # The scan can fail softly (empty result) while the critique still succeeds. Say so
-    # rather than presenting a score derived from no detected garments as if it were solid.
+    # A failed scan leaves an empty garment list, and the critic will dutifully grade that
+    # as a 1/100 "no garments present". Returning it would show someone a catastrophic
+    # score for a perfectly good outfit because of a transient upstream blip. Fail instead,
+    # so the client can retry.
+    if pipeline_error and not scan.detected_items:
+        print(f"Analysis unusable — nothing was detected: {pipeline_error}")
+        raise HTTPException(
+            status_code=502,
+            detail="Could not read the outfit. Please try again in a moment.",
+        )
+
+    # The scan may still have partially succeeded; note it without failing the request.
     if pipeline_error:
         print(f"Analysis completed with a degraded step: {pipeline_error}")
 

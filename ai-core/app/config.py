@@ -74,9 +74,13 @@ PINECONE_NAMESPACE = _first("PINECONE_NAMESPACE", default="__default__")
 # `ChatNVIDIA.get_available_models()` reads a stale table baked into the library and will
 # happily list models that no longer exist.
 # ==========================================================================================
-VISION_MODEL = _first("VISION_MODEL", default="meta/llama-3.2-90b-vision-instruct")
-TEXT_SCAN_MODEL = _first("TEXT_SCAN_MODEL", default="meta/llama-3.1-70b-instruct")
-CRITIC_MODEL = _first("CRITIC_MODEL", default="meta/llama-3.1-405b-instruct")
+# Defaults verified against the live API on 2026-09-14 with scripts/check_models.py.
+# The previous defaults (llama-3.2-90b-vision / llama-3.1-70b / llama-3.1-405b) are all
+# unusable: the 70b is 410 Gone, the 405b is 404, and the 90b-vision accepts the request
+# but never responds — it exceeded 120s in testing, well past the 40s LLM_TIMEOUT.
+VISION_MODEL = _first("VISION_MODEL", default="meta/llama-3.2-11b-vision-instruct")
+TEXT_SCAN_MODEL = _first("TEXT_SCAN_MODEL", default="nvidia/nemotron-3-super-120b-a12b")
+CRITIC_MODEL = _first("CRITIC_MODEL", default="nvidia/nemotron-3-super-120b-a12b")
 
 
 # ==========================================================================================

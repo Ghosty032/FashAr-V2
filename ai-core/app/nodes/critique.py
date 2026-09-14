@@ -6,6 +6,8 @@ from app.schemas.state import AgentState
 from app.schemas.models import CritiqueResult
 from app.prompts.prompts import CRITIC_SYSTEM_PROMPT
 from app.config import LLM_TIMEOUT_SECONDS, CRITIC_MODEL
+from app.json_utils import extract_json_object
+from app.nim import ainvoke_with_retry
 
 async def critique_outfit(state: AgentState) -> dict:
     """
@@ -16,7 +18,9 @@ async def critique_outfit(state: AgentState) -> dict:
     
     try:
      
-        llm = ChatNVIDIA(model=CRITIC_MODEL, temperature=0.66)
+        # Generous token budget: reasoning models spend most of it narrating, and a cap
+        # that truncates mid-JSON produces an unparseable response from a good answer.
+        llm = ChatNVIDIA(model=CRITIC_MODEL, temperature=0.66, max_completion_tokens=4096)
         parser = JsonOutputParser(pydantic_object=CritiqueResult)
         
         scan = state.get("scan_result")
@@ -45,9 +49,20 @@ async def critique_outfit(state: AgentState) -> dict:
         ]
         
         print("Calling NVIDIA NIM Critique Model...")
-        result_dict = await asyncio.wait_for(
-            (llm | parser).ainvoke(messages), timeout=LLM_TIMEOUT_SECONDS
-        )
+        # One call, then extract — deliberately not `llm | parser`.
+        #
+        # JsonOutputParser rejects any preamble, and reasoning models always narrate before
+        # answering. Retrying on that failure meant a second call that could come back
+        # truncated mid-JSON, discarding a first response that was perfectly good. The raw
+        # text is all we need, so ask once and pull the object out of it.
+        raw_response = await ainvoke_with_retry(llm, messages, LLM_TIMEOUT_SECONDS)
+        raw_text = getattr(raw_response, "content", str(raw_response))
+
+        result_dict = extract_json_object(raw_text)
+        if not result_dict:
+            raise ValueError(
+                f"Could not extract JSON from critique response: {raw_text[-400:]}"
+            )
 
         # Parse into Pydantic model
         result = CritiqueResult(**result_dict)

@@ -1,5 +1,3 @@
-import re
-import json
 import asyncio
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -8,22 +6,8 @@ from app.schemas.state import AgentState
 from app.schemas.models import ScanResult
 from app.prompts.prompts import SCANNER_SYSTEM_PROMPT
 from app.config import LLM_TIMEOUT_SECONDS, VISION_MODEL, TEXT_SCAN_MODEL
-
-
-def _extract_json_from_text(raw_text: str) -> dict | None:
-    """
-    Fallback: if the model wraps JSON in prose like 'Sure, here is...',
-    extract the first JSON object using regex.
-    """
-    # Try to find a JSON object {...}
-    match = re.search(r'\{[\s\S]*\}', raw_text)
-    if match:
-        try:
-            parsed = json.loads(match.group())
-            return parsed if isinstance(parsed, dict) else None
-        except json.JSONDecodeError:
-            pass
-    return None
+from app.json_utils import coerce_to_dict, extract_json_object
+from app.nim import ainvoke_with_retry
 
 
 async def scan_outfit(state: AgentState) -> dict:
@@ -40,7 +24,7 @@ async def scan_outfit(state: AgentState) -> dict:
         model_name = TEXT_SCAN_MODEL
         
     try:
-        llm = ChatNVIDIA(model=model_name, temperature=0.1)
+        llm = ChatNVIDIA(model=model_name, temperature=0.1, max_completion_tokens=4096)
         parser = JsonOutputParser(pydantic_object=ScanResult)
         
         # Inject JSON format instructions into the system prompt
@@ -67,31 +51,23 @@ async def scan_outfit(state: AgentState) -> dict:
             raise ValueError("No image or text description provided.")
             
         print(f"Calling NVIDIA NIM Vision Model: {model_name}...")
-        
-        # Try the standard parser first
-        try:
-            result_dict = await asyncio.wait_for(
-                (llm | parser).ainvoke(messages), timeout=LLM_TIMEOUT_SECONDS
-            )
-        except asyncio.TimeoutError:
-            # A hung call must not silently become a retry — that would double the budget.
-            raise
-        except Exception as parse_err:
-            print(f"Parser failed, attempting manual JSON extraction: {parse_err}")
-            # Fallback: get raw text and extract JSON manually
-            raw_response = await asyncio.wait_for(
-                llm.ainvoke(messages), timeout=LLM_TIMEOUT_SECONDS
-            )
-            raw_text = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
-            result_dict = _extract_json_from_text(raw_text)
-            if not result_dict:
-                raise ValueError(f"Could not extract JSON from model response: {raw_text[:200]}")
-        
-        # Handle case where parser returns a list instead of dict
-        if isinstance(result_dict, list):
-            print("Parser returned a list, wrapping in dict...")
-            result_dict = {"detected_items": result_dict, "color_palette": []}
-        
+
+        # One call, then extract — see the note in critique.py. Chaining `llm | parser`
+        # and retrying on failure meant paying for a second call whose output could come
+        # back truncated, throwing away a perfectly good first response.
+        raw_response = await ainvoke_with_retry(llm, messages, LLM_TIMEOUT_SECONDS)
+        raw_text = getattr(raw_response, "content", str(raw_response))
+
+        result_dict = extract_json_object(raw_text)
+        if not result_dict:
+            raise ValueError(f"Could not extract JSON from model response: {raw_text[-400:]}")
+
+        # Some models return just the garment array when that is the schema's main field.
+        result_dict = coerce_to_dict(result_dict, "detected_items", {"color_palette": []})
+        if result_dict is None:
+            raise ValueError("Model response was neither a JSON object nor an array.")
+
+
         # Parse into Pydantic model
         result = ScanResult(**result_dict)
         print("Scan successful!")
